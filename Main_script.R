@@ -86,9 +86,9 @@ rm(CompanyBViDs)
 
 ## create edgelist of 2021 by concatenating CSHs
 
-Edgelist2021Help1 <- group_by(OrbisCompanies, CompanyBvDID) %>%
-  summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE))
-
+Edgelist2021Help1 <-  dplyr::group_by(OrbisCompanies, CompanyBvDID) %>%
+                      dplyr::summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE)) 
+                      
 
 Edgelist2021Help2 <- data.frame("Path" = Edgelist2021Help1$Path, "Company" = Edgelist2021Help1$CompanyBvDID)
 
@@ -116,8 +116,8 @@ rm(i)
 ## create nodelist of 2021 by merging companies and chs' 
 
 Nodelist2021 <- rbind(OrbisCompanies[1:11], OrbisCSH) %>%
-                      group_by(CompanyBvDID) %>%
-                      summarize(
+                      dplyr::group_by(CompanyBvDID) %>%
+                      dplyr::summarize(
                                 CompanyName = first(CompanyName),
                                 CompanyISO = first(CompanyISO),
                                 CompanyNACECore = first(CompanyNACECore),
@@ -329,13 +329,56 @@ rm(i,j,k)
 
 
 
+## Add new companies to company list
+
+
+Temp1 <- lapply(1:length(Edgelist.List),function (x) unique(Edgelist.List[[x]][,2][Edgelist.List[[x]][,2] != "" & Edgelist.List[[x]][,2] %notin% Nodelist2021$CompanyBvDID]))
+
+NewBvDIDs <- vector(mode = "character")
+
+
+
+for (i in 2:length(Temp1)) {
+NewBvDIDs <- c(Temp1[[i]], Temp1[[(i-1)]])
+}
+
+NewBvDIDs <- unique(NewBvDIDs)
+
+
+BvIDexport <- as.data.frame(NewBvDIDs)
+
+
+rio::export(BvIDexport,"BvIDexport.xlsx")
+
+Merge1 <- rio::import("Merge1.xlsx", which = "Results")
+Merge1 <- Merge1[,-1]
+colnames(Merge1) <- colnames(OrbisCompanies)
+
+Merge1 <- Merge1 %>%
+                  fill(CompanyBvDID, CompanyName)
+  
+Merge1Edges <- Merge1 %>%
+                dplyr::group_by(CompanyBvDID) %>%
+                dplyr::summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE))
+
+colnames(Merge1Edges) <- c("Company","Path")
+
+Merge1Edges <- as.data.frame(ifelse(is.na(Merge1Edges$Path) == TRUE,
+                                                    Merge1Edges$Company,
+                                                    paste2(Merge1Edges[1:2], sep = ",")))
+colnames(Merge1Edges) <- c("Path")
+
+Merge1Edges <- data.frame(str_split_fixed(Merge1Edges$Path, "," ,15))
+
+Merge1Edges <- Merge1Edges[!sapply(Merge1Edges, function(x) all(x == ""))]
+
+Merge1Edges$X6 <- apply(Merge1Edges,1, function(x) last(x[x!=""]))
 
 
 
 
-getmeout <- Edgelist.List[[9]]  
+getmeout <- NewBvDIDs[[9]]  
 getmeoutahere <- Edgelist.ListBU[[9]]  
-
 
 
 Edgelist.ListBU <- Edgelist.List
