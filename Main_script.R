@@ -327,12 +327,19 @@ for (i in 1:4) {
 rm(i,j,k)
 
 
+## Standardize column names
+
+Edgelist.List <- lapply(1:length(Edgelist.List), function(x) as.data.frame(Edgelist.List[[x]]))
+Edgelist.List <- lapply(1:length(Edgelist.List), function(x) Edgelist.List[[x]][!sapply(Edgelist.List[[x]], function(y) all(y == ""))])
+Edgelist.List <- lapply(1:length(Edgelist.List), function(x) setNames(Edgelist.List[[x]],c(paste0("X",1:ncol(Edgelist.List[[x]])))))
+names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 ## Add new companies to company list
 
 
-Temp1 <- lapply(1:length(Edgelist.List),function (x) unique(Edgelist.List[[x]][,2][Edgelist.List[[x]][,2] != "" & Edgelist.List[[x]][,2] %notin% Nodelist2021$CompanyBvDID]))
+Temp1 <- lapply(1:length(Edgelist.List),function (x) Edgelist.List[[x]][,2][Edgelist.List[[x]][,1] == "APPEND"])
+
 
 NewBvDIDs <- vector(mode = "character")
 
@@ -356,10 +363,11 @@ colnames(Merge1) <- colnames(OrbisCompanies)
 
 Merge1 <- Merge1 %>%
                   fill(CompanyBvDID, CompanyName)
-  
+
 Merge1Edges <- Merge1 %>%
                 dplyr::group_by(CompanyBvDID) %>%
                 dplyr::summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE))
+
 
 colnames(Merge1Edges) <- c("Company","Path")
 
@@ -375,10 +383,18 @@ Merge1Edges <- Merge1Edges[!sapply(Merge1Edges, function(x) all(x == ""))]
 Merge1Edges$X6 <- apply(Merge1Edges,1, function(x) last(x[x!=""]))
 
 
+Test1 <- setDT(as.data.frame(Edgelist.List[[3]]))
+Test2 <- setDT(Merge1Edges) 
+
+setkey(Test1,X2)
+setkey(Test2,X6)
+
+Test3 <- Test2[Test1]
 
 
-getmeout <- NewBvDIDs[[9]]  
+getmeout <- Edgelist.List[[5]]
 getmeoutahere <- Edgelist.ListBU[[9]]  
 
 
 Edgelist.ListBU <- Edgelist.List
+Edgelist.List <- Edgelist.ListBU
