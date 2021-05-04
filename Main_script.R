@@ -392,8 +392,8 @@ setkey(Test2,X6)
 Test3 <- Test2[Test1]
 
 
-getmeout <- Edgelist.List[[5]]
-getmeoutahere <- Edgelist.ListBU[[9]]  
+check <- Edgelist.List[[5]]
+check2 <- Edgelist.ListBU[[9]]  
 
 
 Edgelist.ListBU <- Edgelist.List
