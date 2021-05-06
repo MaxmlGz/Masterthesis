@@ -35,12 +35,12 @@ registerDoParallel(c1)
 
 ## Import raw data from Orbis
 
-OrbisCompanies1 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 13_03_2021 11_56.xlsx", which = "Results")
-OrbisCompanies2 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 13_03_2021 12_04.xlsx", which = "Results")
-OrbisCompanies3 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 13_03_2021 12_10.xlsx", which = "Results")
-OrbisCompanies4 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 13_03_2021 12_16.xlsx", which = "Results")
-OrbisCompanies5 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 13_03_2021 12_32.xlsx", which = "Results")
-OrbisCompanies6 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 13_03_2021 12_35.xlsx", which = "Results")
+OrbisCompanies1 <- rio::import("Orbis companies 2021/Export 13_03_2021 11_56.xlsx", which = "Results")
+OrbisCompanies2 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_04.xlsx", which = "Results")
+OrbisCompanies3 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_10.xlsx", which = "Results")
+OrbisCompanies4 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_16.xlsx", which = "Results")
+OrbisCompanies5 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_32.xlsx", which = "Results")
+OrbisCompanies6 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_35.xlsx", which = "Results")
 
 
 
@@ -72,7 +72,7 @@ rio::export(CSHBViDs2, "CSHList.csv")
 
 ## Import CSH list to R
 
-OrbisCSH <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Orbis Export 2021 Mod/Export 01_04_2021 14_19.xlsx", which = "Results")
+OrbisCSH <- rio::import("Orbis CSH companies 2021/Export 01_04_2021 14_19.xlsx", which = "Results")
 
 
 
@@ -132,10 +132,10 @@ Nodelist2021 <- rbind(OrbisCompanies[1:11], OrbisCSH) %>%
 
 ## Import M&A Events
 
-Deals1 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.1.xlsx")
-Deals2 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.2.xlsx")
-Deals3 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.3.xlsx")
-Deals4 <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.4.xlsx")
+Deals1 <- rio::import("Orbis deals list level 1/ExportDeals1.1.xlsx")
+Deals2 <- rio::import("Orbis deals list level 1/ExportDeals1.2.xlsx")
+Deals3 <- rio::import("Orbis deals list level 1/ExportDeals1.3.xlsx")
+Deals4 <- rio::import("Orbis deals list level 1/ExportDeals1.4.xlsx")
 
 Deals <- rbind(Deals1,Deals2,Deals3,Deals4)
 
@@ -149,10 +149,10 @@ rm(i)
 
 ## Import alternative M&A list (with filters)
 
-Deals1alt <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.1ALT.xlsx")
-Deals2alt <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.2ALT.xlsx")
-Deals3alt <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.3ALT.xlsx")
-Deals4alt <- rio::import("C:/Users/maxim/OneDrive/Desktop/Uni Master/Master/Export Deals/ExportDeals1.4ALT.xlsx")
+Deals1alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.1ALT.xlsx")
+Deals2alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.2ALT.xlsx")
+Deals3alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.3ALT.xlsx")
+Deals4alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.4ALT.xlsx")
 
 DealsALT <- rbind(Deals1alt,Deals2alt, Deals3alt,Deals4alt)
 
