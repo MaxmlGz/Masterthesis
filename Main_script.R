@@ -335,10 +335,14 @@ Edgelist.List <- lapply(1:length(Edgelist.List), function(x) setNames(Edgelist.L
 names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
-## Add new companies to company list
+
+## Export new companies to append (from deals) to Orbis
 
 
-Temp1 <- lapply(1:length(Edgelist.List),function (x) Edgelist.List[[x]][,2][Edgelist.List[[x]][,1] == "APPEND"])
+Temp1 <- lapply(1:length(Edgelist.List),function (x) Edgelist.List[[x]]$X2[Edgelist.List[[x]]$X1 == "APPEND"])
+
+TempControlByYear <- Temp1
+
 
 
 NewBvDIDs <- vector(mode = "character")
@@ -346,8 +350,10 @@ NewBvDIDs <- vector(mode = "character")
 
 
 for (i in 2:length(Temp1)) {
-NewBvDIDs <- c(Temp1[[i]], Temp1[[(i-1)]])
+NewBvDIDs <- c(NewBvDIDs,Temp1[[i]])
 }
+
+rm(i)
 
 NewBvDIDs <- unique(NewBvDIDs)
 
@@ -357,12 +363,21 @@ BvIDexport <- as.data.frame(NewBvDIDs)
 
 rio::export(BvIDexport,"BvIDexport.xlsx")
 
+
+## Import new companies to append (from deals) from Orbis -> we save the Orbis company List resulting from a BvDID search using BvIDexport.xlsx as "Merge1"
+
+
 Merge1 <- rio::import("Merge1.xlsx", which = "Results")
 Merge1 <- Merge1[,-1]
 colnames(Merge1) <- colnames(OrbisCompanies)
 
 Merge1 <- Merge1 %>%
                   fill(CompanyBvDID, CompanyName)
+
+
+
+## create ownership chains for new companies to merge at "APPEND" for each year 
+
 
 Merge1Edges <- Merge1 %>%
                 dplyr::group_by(CompanyBvDID) %>%
@@ -371,28 +386,127 @@ Merge1Edges <- Merge1 %>%
 
 colnames(Merge1Edges) <- c("Company","Path")
 
+
 Merge1Edges <- as.data.frame(ifelse(is.na(Merge1Edges$Path) == TRUE,
                                                     Merge1Edges$Company,
-                                                    paste2(Merge1Edges[1:2], sep = ",")))
+                                                    paste2(Merge1Edges[2:1], sep = ",")))
 colnames(Merge1Edges) <- c("Path")
 
 Merge1Edges <- data.frame(str_split_fixed(Merge1Edges$Path, "," ,15))
 
 Merge1Edges <- Merge1Edges[!sapply(Merge1Edges, function(x) all(x == ""))]
 
-Merge1Edges$X6 <- apply(Merge1Edges,1, function(x) last(x[x!=""]))
+Merge1Edges <- cbind(Merge1Edges, apply(Merge1Edges,1, function(x) last(x[x!=""])))
+
+colnames(Merge1Edges) <- paste0("X", 1:ncol(Merge1Edges))
 
 
-Test1 <- setDT(as.data.frame(Edgelist.List[[3]]))
-Test2 <- setDT(Merge1Edges) 
 
-setkey(Test1,X2)
-setkey(Test2,X6)
-
-Test3 <- Test2[Test1]
+## merge new ownership chains with Edgelists from 2020 to 1996
 
 
-check <- Edgelist.List[[5]]
+for (i in 2:length(Edgelist.List)) {
+  
+  
+Temp1 <- (as.data.frame(Edgelist.List[[i]]))
+Temp2 <- as.data.frame(Merge1Edges %>% subset(Merge1Edges[,ncol(Merge1Edges)] %in% TempControlByYear[[i]]))
+
+
+Temp1$rownumbers <- rownames(Temp1)
+
+
+Temp3 <- Temp1 %>%
+                    subset (Temp1$X2 %in% Temp2[,ncol(Temp2)] & Temp1$X1 == "APPEND")
+
+
+Temp4 <- Temp2 %>%
+                    subset(Temp2[,ncol(Temp2)] %in% Temp3$X2)
+
+
+setDT(Temp3)
+setDT(Temp4)
+
+setkey(Temp3,X2)
+setkeyv(Temp4,paste0("X",ncol(Temp4)))
+
+
+Temp5 <- Temp4[Temp3]
+
+
+Temp5[Temp5 == "APPEND"] <- NA
+
+Temp5[Temp5 == ""] <- NA
+  
+  
+Temp5 <- Temp5[,which(unlist(lapply(Temp5, function(x) !all(is.na(x))))),with=F]
+
+
+
+
+Temp1[match(Temp5$rownumbers, Temp1$rownumbers),1:(ncol(Temp5)-1)] <- Temp5[,1:(ncol(Temp5)-1)]
+
+Temp1$rownumbers <- rownames(Temp1)
+
+Temp1[match(Temp5$rownumbers, Temp1$rownumbers),(ncol(Temp5):ncol(Temp1))] <- NA
+
+
+Temp1$rownumbers <- NULL
+
+
+
+Temp1[,(-1)][sapply(2:ncol(Temp1), function(x) Temp1[,x] == Temp1[,(x-1)])] <- NA
+
+
+Temp1[is.na(Temp1)] <- ""
+
+Temp1[] <- t(apply(Temp1,1,function(x) {c(x[!x == ""],x[x == ""])}))
+
+Temp1 <- Temp1[!sapply(Temp1, function(x) all(x == ""))]
+
+
+
+Edgelist.List[[i]] <- Temp1
+
+
+}
+
+for(i in 1:5) {
+rm(list= paste0("Temp",i))
+}
+
+names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
+
+
+
+
+                
+
+
+
+### -------- 
+
+
+
+# At this point, we basically start again from line 150 (import M&A events) and look if companies of the the newly appended ownership chains were themselves involved in M&A deals. We repeat the 
+# "mark and merge" process (Line 150 to 477) untill no changes occur to the Edgelists anymore. Then, the Nodelists and finally the networks can be created for every year 
+
+
+### --------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+check <- Edgelist.List[["Edgelist1996"]]
 check2 <- Edgelist.ListBU[[9]]  
 
 
