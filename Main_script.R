@@ -147,7 +147,7 @@ rm(i)
 
 
 
-## Import alternative M&A list (with filters)
+## Import alternative M&A list (with filters) <- this is kind of a Zombie since I decided to rather filter with string detection (line 191)
 
 Deals1alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.1ALT.xlsx")
 Deals2alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.2ALT.xlsx")
@@ -473,6 +473,8 @@ Edgelist.List[[i]] <- Temp1
 for(i in 1:5) {
 rm(list= paste0("Temp",i))
 }
+
+rm(i)
 
 names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
