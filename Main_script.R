@@ -20,17 +20,10 @@ library(lubridate)
 library(rlist)
 library(purrr)
 library(taRifx)
-library(foreach)
-library(doParallel)
 library(devtools)
+library(splitstackshape)
+library(pbapply)
 
-
-
-
-## define clusters and configure parallezation
-
-c1 <- detectCores() -2
-registerDoParallel(c1)
 
 
 ## Import raw data from Orbis
@@ -1100,6 +1093,12 @@ names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edge
 
 
 
+## Standardize column names
+
+Edgelist.List <- lapply(1:length(Edgelist.List), function(x) as.data.frame(Edgelist.List[[x]]))
+Edgelist.List <- lapply(1:length(Edgelist.List), function(x) Edgelist.List[[x]][!sapply(Edgelist.List[[x]], function(y) all(y == ""))])
+Edgelist.List <- lapply(1:length(Edgelist.List), function(x) setNames(Edgelist.List[[x]],c(paste0("X",1:ncol(Edgelist.List[[x]])))))
+names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 ## after those 1105 lines of code, The historic ownership chains should be reconstructed as good as possible (at least to my capabilities) next, I will control for dates of incorporation and (if available) dates of discontinuation
@@ -1111,19 +1110,4 @@ names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edge
 
 
 
-
-
-check <- Edgelist.List[["Edgelist2019"]]
-check2 <- Edgelist.ListBU[[9]]  
-
-
-Edgelist.ListBU <- Edgelist.ListBU2
-Edgelist.List <- Edgelist.ListBU
-Edgelist.ListBU2 <- Edgelist.List
-
-
-Mergelist1.ListBU <- Mergelist1.List
-Mergelist1.List <- Mergelist1.ListBU
-
-Mergelist2.ListBU <- Mergelist2.List
 
