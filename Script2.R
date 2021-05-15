@@ -192,15 +192,14 @@ Control.Duplicates.Temp12 <- do.call(c, list(Control.Duplicates.Temp13, Control.
 Edgelist.List.Filtered.Temp12 <- Edgelist.List.Filtered.Temp11[unlist(Control.Duplicates.Temp12)]
 
 
-## name each unique Edgelist by the latest founding date of its companies 
+## name each unique Edgelist by the latest founding date of its companies and remove duplicate rows
 
-names(Edgelist.List.Filtered.Temp12) <- pblapply(1:length(Edgelist.List.Filtered.Temp12), function (x) {max(sapply(Edgelist.List.Filtered.Temp12[[x]], function (y) NodelistALL$CompanyStart[match(y, NodelistALL$CompanyBvDID)]), na.rm = TRUE)})
-
+Edgelist.List.Filtered <- Edgelist.List.Filtered.Temp12
+Edgelist.List.Filtered <- pblapply(1:length(Edgelist.List.Filtered), function(x) unique(Edgelist.List.Filtered[[x]]))
+names(Edgelist.List.Filtered) <- pblapply(1:length(Edgelist.List.Filtered), function (x) {max(sapply(Edgelist.List.Filtered[[x]], function (y) NodelistALL$CompanyStart[match(y, NodelistALL$CompanyBvDID)]), na.rm = TRUE)})
 
 
 ##cleanup
-
-Edgelist.List.Filtered <- Edgelist.List.Filtered.Temp12
 
 rm(Edgelist.List.Filtered.Temp)
 for (i in 1:12) {
