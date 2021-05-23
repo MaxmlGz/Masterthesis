@@ -1,0 +1,59 @@
+html {
+  background-color: black;
+}
+#border {
+ width: 60%;
+ height: 60%;
+ overflow: Scroll;
+ 
+ margin-top:50px;
+ margin-left: 20%;
+ margin-right: 20%;
+ text-align: center;
+}
+
+#img {
+ max-width: 60%;
+ object-fit: cover;
+ text-align: center;
+ transform-origin: top left;
+}
+
+#zoom {
+ margin-left: 20%;
+ margin-right: 20%;
+ text-align: center;
+ color: grey;
+ font-weight: bold;
+}
+
+#zoomer{
+ margin-top:20px;
+ width: 455px;
+}
+
+.buttons{
+ width: 250px;	
+ float: left;
+ padding-top: 20px;
+ color: grey;
+ border: none;
+ outline: none;
+}
+
+h2 { 
+ margin-left: 20%;
+ margin-right: 20%;
+ color: grey; 
+ text-align: center;
+}
+
+#year { 
+ color: grey; 
+ text-align: center;
+ padding-top: 20px;
+ font-weight: bold;
+ font-size:20;
+ margin-left: 20%;
+ margin-right: 20%;
+}
