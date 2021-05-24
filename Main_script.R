@@ -1,7 +1,7 @@
 ## Load libraries
 
-library(dplyr)
 library(plyr)
+library(dplyr)
 library(data.table)
 library(datasets)
 library(igraph)
@@ -23,6 +23,12 @@ library(taRifx)
 library(devtools)
 library(splitstackshape)
 library(pbapply)
+library(maps)
+library(geosphere)
+library(ggplot2)
+library(shiny)
+library(magick)
+
 
 
 
