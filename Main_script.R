@@ -28,7 +28,9 @@ library(geosphere)
 library(ggplot2)
 library(shiny)
 library(magick)
-
+library(reshape2)
+library(ggallin)
+library(Hmisc)
 
 
 
@@ -58,12 +60,11 @@ for (i in 1:6){
 rm(i)
 
 
-
 ## Export CSH ID's that are not in company list to Orbis (to get all dates of incorporation)
 
 CompanyBViDs <- OrbisCompanies$CompanyBvDID
 CSHBViDs <- OrbisCompanies$CSHBvDID
-CSHBViDs2 <- distinct(as.data.frame(setdiff(CSHBViDs, CompanyBViDs)))
+CSHBViDs2 <- dplyr::distinct(as.data.frame(setdiff(CSHBViDs, CompanyBViDs)))
 
 rio::export(CSHBViDs2, "CSHList.csv")
 
@@ -85,28 +86,17 @@ rm(CompanyBViDs)
 
 ## create edgelist of 2021 by concatenating CSHs
 
-Edgelist2021Help1 <-  dplyr::group_by(OrbisCompanies, CompanyBvDID) %>%
-                      dplyr::summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE)) 
-                      
 
-Edgelist2021Help2 <- data.frame("Path" = Edgelist2021Help1$Path, "Company" = Edgelist2021Help1$CompanyBvDID)
+Edgelist2021 <- data.frame(unique(OrbisCompanies$CompanyBvDID))
 
+for (i in 1:15) {
+  Edgelist2021 <- cbind(subset(OrbisCompanies, OrbisCompanies$CSHLevel == i)$CSHBvDID[match(Edgelist2021$unique.OrbisCompanies.CompanyBvDID., subset(OrbisCompanies, OrbisCompanies$CSHLevel == i)$CompanyBvDID)],Edgelist2021)
+}
 
-Edgelist2021Help3 <- as.data.frame(ifelse(is.na(Edgelist2021Help2$Path) == TRUE,
-                                                                                            Edgelist2021Help2$Company,
-                                                                                            paste2(Edgelist2021Help2[1:2], sep = ",")))
-colnames(Edgelist2021Help3) <- c("Path")
-
-
-Edgelist2021 <- data.frame(str_split_fixed(Edgelist2021Help3$Path, "," ,15))
-
-
-
-## cleanup
-
-for (i in 1:3){
-  rm(list=paste0("Edgelist2021Help",i))
-}  
+Edgelist2021 <- t(apply(Edgelist2021,1,function(x) {c(x[!is.na(x)],x[is.na(x)])}))
+Edgelist2021 <- as.data.frame(Edgelist2021)
+Edgelist2021 <- Edgelist2021[!sapply(Edgelist2021, function(x) all(is.na(x)))]
+Edgelist2021[is.na(Edgelist2021)] <- ""
 
 rm(i)
 
@@ -120,9 +110,10 @@ Nodelist2021 <- rbind(OrbisCompanies[1:11], OrbisCSH) %>%
                                 CompanyName = first(CompanyName),
                                 CompanyISO = first(CompanyISO),
                                 CompanyNACECore = first(CompanyNACECore),
-                                CompanyNACE = paste2(CompanyNACE, sep = ",", trim = TRUE),
+                                CompanyNACE = toString(unique(na.omit(CompanyNACE))),
                                 CompanyPostcode = first(CompanyPostcode),
                                 CompanyCity = first(CompanyCity),
+                                CompanyState = first(CompanyState),
                                 CompanyStart = first(CompanyStart),
                                 CompanyStatus = first(CompanyStatus),
                                 CompanyEnd = first(CompanyEnd),
@@ -140,23 +131,6 @@ Deals <- rbind(Deals1,Deals2,Deals3,Deals4)
 
 for (i in 1:4){
   rm(list=paste0("Deals",i))
-}
-
-rm(i)
-
-
-
-## Import alternative M&A list (with filters) <- this is kind of a Zombie since I decided to rather filter with string detection (line 191)
-
-Deals1alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.1ALT.xlsx")
-Deals2alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.2ALT.xlsx")
-Deals3alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.3ALT.xlsx")
-Deals4alt <- rio::import("Orbis deals list level 1 alternative/ExportDeals1.4ALT.xlsx")
-
-DealsALT <- rbind(Deals1alt,Deals2alt, Deals3alt,Deals4alt)
-
-for (i in 1:4){
-  rm(list=paste0("Deals",i,"alt"))
 }
 
 rm(i)
@@ -182,7 +156,7 @@ Deals.List.Byyear[[((max(Deals$Year, na.rm = TRUE)+1)-i)]] <- list.filter(Deals.
 
 }
 
-names(Deals.List.Byyear) <- lapply(1:length(Deals.List.Byyear), function(x) paste0("Deals",(2022-x)))
+names(Deals.List.Byyear) <- pblapply(1:length(Deals.List.Byyear), function(x) paste0("Deals",(2022-x)))
 
 
 
@@ -190,35 +164,34 @@ names(Deals.List.Byyear) <- lapply(1:length(Deals.List.Byyear), function(x) past
 ## Pre-filter Deals List
 
 
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Minority") == FALSE)))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Minority") == FALSE)))
 
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Share buyback") == FALSE)))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Share buyback") == FALSE)))
 
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Capital Increase") == FALSE)))
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Capital increase") == FALSE)))
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], all(is.na(`Deal type`)) == FALSE))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Capital Increase") == FALSE)))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, "Capital increase") == FALSE)))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], all(is.na(`Deal type`)) == FALSE))
 
 for(i in 50:100) {
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
 }
 
 for(i in 1:49) {
-    Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
+    Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
 }
 
 for (i in 1:49) {
-Deals.List.Byyear <- lapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
+Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
 } 
 
 
-names(Deals.List.Byyear) <- lapply(1:length(Deals.List.Byyear), function(x) paste0("Deals",(2022-x)))
+names(Deals.List.Byyear) <- pblapply(1:length(Deals.List.Byyear), function(x) paste0("Deals",(2022-x)))
 
 
 
 
 
 ## check if acquirer is still owner 
-##Scheme:  SELECT * FROM Edgelist2021 WHERE Deals2021$Acquirer LEFT OF Deals2021$Target
 
 
 
@@ -263,7 +236,7 @@ Edgelist.List[[(i+1)]] <- as.matrix(Temp4)
 
 }
 
-names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
+names(Edgelist.List) <- pblapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 
@@ -278,7 +251,6 @@ rm(i,j,k)
 
 
 ## check if Vendor not  the owner anymore  
-##Scheme:  SELECT * FROM Edgelist2021 WHERE Deals2021$Acquirer LEFT OF Deals2021$Target
 
 
 for (i in 1:length(Deals.List.Byyear)) {
@@ -317,7 +289,7 @@ for (i in 1:length(Deals.List.Byyear)) {
   
 }
 
-names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
+names(Edgelist.List) <- pblapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 for (i in 1:4) {
@@ -328,17 +300,17 @@ rm(i,j,k)
 
 ## Standardize column names
 
-Edgelist.List <- lapply(1:length(Edgelist.List), function(x) as.data.frame(Edgelist.List[[x]]))
-Edgelist.List <- lapply(1:length(Edgelist.List), function(x) Edgelist.List[[x]][!sapply(Edgelist.List[[x]], function(y) all(y == ""))])
-Edgelist.List <- lapply(1:length(Edgelist.List), function(x) setNames(Edgelist.List[[x]],c(paste0("X",1:ncol(Edgelist.List[[x]])))))
-names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
+Edgelist.List <- pblapply(1:length(Edgelist.List), function(x) as.data.frame(Edgelist.List[[x]]))
+Edgelist.List <- pblapply(1:length(Edgelist.List), function(x) Edgelist.List[[x]][!sapply(Edgelist.List[[x]], function(y) all(y == ""))])
+Edgelist.List <- pblapply(1:length(Edgelist.List), function(x) setNames(Edgelist.List[[x]],c(paste0("X",1:ncol(Edgelist.List[[x]])))))
+names(Edgelist.List) <- pblapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 
 ## Export new companies to merge to Orbis
 
 
-Temp1 <- lapply(1:length(Edgelist.List),function (x) Edgelist.List[[x]]$X2[Edgelist.List[[x]]$X1 == "APPEND"])
+Temp1 <- pblapply(1:length(Edgelist.List),function (x) Edgelist.List[[x]]$X2[Edgelist.List[[x]]$X1 == "APPEND"])
 
 TempControlByYear <- Temp1
 
@@ -379,28 +351,23 @@ Merge1 <- Merge1 %>%
 ## create ownership chains for new companies to merge at "APPEND" for each year 
 
 
-Merge1Edges <- Merge1 %>%
-                dplyr::group_by(CompanyBvDID) %>%
-                dplyr::summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE))
 
+Merge1Edges <- data.frame(unique(Merge1$CompanyBvDID))
 
-colnames(Merge1Edges) <- c("Company","Path")
+for (i in 1:15) {
+  Merge1Edges <- cbind(subset(Merge1, Merge1$CSHLevel == i)$CSHBvDID[match(Merge1Edges$unique.Merge1.CompanyBvDID., subset(Merge1, Merge1$CSHLevel == i)$CompanyBvDID)],Merge1Edges)
+}
 
+Merge1Edges <- t(apply(Merge1Edges,1,function(x) {c(x[!is.na(x)],x[is.na(x)])}))
+Merge1Edges <- as.data.frame(Merge1Edges)
+Merge1Edges <- Merge1Edges[!sapply(Merge1Edges, function(x) all(is.na(x)))]
+Merge1Edges[is.na(Merge1Edges)] <- ""
 
-Merge1Edges <- as.data.frame(ifelse(is.na(Merge1Edges$Path) == TRUE,
-                                                    Merge1Edges$Company,
-                                                    paste2(Merge1Edges[2:1], sep = ",")))
-colnames(Merge1Edges) <- c("Path")
-
-Merge1Edges <- data.frame(str_split_fixed(Merge1Edges$Path, "," ,15))
-
-Merge1Edges <- Merge1Edges[!sapply(Merge1Edges, function(x) all(x == ""))]
+rm(i)
 
 Merge1Edges <- cbind(Merge1Edges, apply(Merge1Edges,1, function(x) last(x[x!=""])))
 
 colnames(Merge1Edges) <- paste0("X", 1:ncol(Merge1Edges))
-
-
 
 
 
@@ -426,13 +393,13 @@ rm(i)
 
 BvIDexport2 <- as.data.frame(NewBvDIDs)
 
+
 rio::export(BvIDexport2,"BvIDexport2.xlsx")
 
 
 
-
-
 ## Import M&A Events
+
 
 Deals1L2 <- rio::import("Orbis deals list level 2/ExportDeals2.1.xlsx")
 
@@ -461,7 +428,7 @@ for (i in min(Deals1L2$Year, na.rm = TRUE):max(Deals1L2$Year, na.rm = TRUE)) {
   
 }
 
-names(Deals.List.ByyearL2) <- lapply(1:length(Deals.List.ByyearL2), function(x) paste0("Deals",(2022-x)))
+names(Deals.List.ByyearL2) <- pblapply(1:length(Deals.List.ByyearL2), function(x) paste0("Deals",(2022-x)))
 
 
 
@@ -469,34 +436,34 @@ names(Deals.List.ByyearL2) <- lapply(1:length(Deals.List.ByyearL2), function(x) 
 ## Pre-filter Deals List
 
 
-Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Minority") == FALSE)))
+Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Minority") == FALSE)))
 
-Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Share buyback") == FALSE)))
+Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Share buyback") == FALSE)))
 
-Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Capital Increase") == FALSE)))
-Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Capital increase") == FALSE)))
-Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], all(is.na(`Deal type`)) == FALSE))
+Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Capital Increase") == FALSE)))
+Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, "Capital increase") == FALSE)))
+Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], all(is.na(`Deal type`)) == FALSE))
 
 for(i in 50:100) {
-  Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
+  Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
 }
 
 for(i in 1:49) {
-  Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
+  Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
 }
 
 for (i in 1:49) {
-  Deals.List.ByyearL2 <- lapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
+  Deals.List.ByyearL2 <- pblapply(1:length(Deals.List.ByyearL2), function(x) list.filter(Deals.List.ByyearL2[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
 } 
 
 
-names(Deals.List.ByyearL2) <- lapply(1:length(Deals.List.ByyearL2), function(x) paste0("Deals",(2022-x)))
+names(Deals.List.ByyearL2) <- pblapply(1:length(Deals.List.ByyearL2), function(x) paste0("Deals",(2022-x)))
 
 
 
 
 ## check if acquirer is still owner 
-##Scheme:  SELECT * FROM Edgelist2021 WHERE Deals2021$Acquirer LEFT OF Deals2021$Target
+
 
 
 Mergelist1.List <- vector(mode = "list")
@@ -539,7 +506,7 @@ for (i in 1:length(Deals.List.ByyearL2)) {
   
 }
 
-names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("Mergelist1-",(2022-x)))
+names(Mergelist1.List) <- pblapply(1:length(Mergelist1.List), function(x) paste0("Mergelist1-",(2022-x)))
 
 
 for (i in 1:4) {
@@ -550,7 +517,7 @@ rm(i,j,k)
 
 
 ## check if Vendor not  the owner anymore  
-##Scheme:  SELECT * FROM Edgelist2021 WHERE Deals2021$Acquirer LEFT OF Deals2021$Target
+
 
 
 for (i in 1:length(Deals.List.ByyearL2)) {
@@ -589,7 +556,7 @@ for (i in 1:length(Deals.List.ByyearL2)) {
   
 }
 
-names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
+names(Mergelist1.List) <- pblapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 for (i in 1:4) {
@@ -601,10 +568,10 @@ rm(i,j,k)
 
 ## Standardize column names
 
-Mergelist1.List <- lapply(1:length(Mergelist1.List), function(x) as.data.frame(Mergelist1.List[[x]]))
-Mergelist1.List <- lapply(1:length(Mergelist1.List), function(x) Mergelist1.List[[x]][!sapply(Mergelist1.List[[x]], function(y) all(y == ""))])
-Mergelist1.List <- lapply(1:length(Mergelist1.List), function(x) setNames(Mergelist1.List[[x]],c(paste0("X",1:ncol(Mergelist1.List[[x]])))))
-names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
+Mergelist1.List <- pblapply(1:length(Mergelist1.List), function(x) as.data.frame(Mergelist1.List[[x]]))
+Mergelist1.List <- pblapply(1:length(Mergelist1.List), function(x) Mergelist1.List[[x]][!sapply(Mergelist1.List[[x]], function(y) all(y == ""))])
+Mergelist1.List <- pblapply(1:length(Mergelist1.List), function(x) setNames(Mergelist1.List[[x]],c(paste0("X",1:ncol(Mergelist1.List[[x]])))))
+names(Mergelist1.List) <- pblapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 
@@ -612,7 +579,7 @@ names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("
 ## Export new companies to append (from deals) to Orbis
 
 
-Temp1 <- lapply(1:length(Mergelist1.List),function (x) Mergelist1.List[[x]]$X2[Mergelist1.List[[x]]$X1 == "APPEND"])
+Temp1 <- pblapply(1:length(Mergelist1.List),function (x) Mergelist1.List[[x]]$X2[Mergelist1.List[[x]]$X1 == "APPEND"])
 
 TempControlByYear <- Temp1
 
@@ -655,22 +622,18 @@ Merge2 <- Merge2 %>%
 ## create ownership chains for new companies to merge at "APPEND" for each year 
 
 
-Merge2Edges <- Merge2 %>%
-  dplyr::group_by(CompanyBvDID) %>%
-  dplyr::summarize(Path = paste2(CSHBvDID, sep = ",", trim = TRUE))
+Merge2Edges <- data.frame(unique(Merge2$CompanyBvDID))
 
+for (i in 1:15) {
+  Merge2Edges <- cbind(subset(Merge2, Merge2$CSHLevel == i)$CSHBvDID[match(Merge2Edges$unique.Merge2.CompanyBvDID., subset(Merge2, Merge2$CSHLevel == i)$CompanyBvDID)],Merge2Edges)
+}
 
-colnames(Merge2Edges) <- c("Company","Path")
+Merge2Edges <- t(apply(Merge2Edges,1,function(x) {c(x[!is.na(x)],x[is.na(x)])}))
+Merge2Edges <- as.data.frame(Merge2Edges)
+Merge2Edges <- Merge2Edges[!sapply(Merge2Edges, function(x) all(is.na(x)))]
+Merge2Edges[is.na(Merge2Edges)] <- ""
 
-
-Merge2Edges <- as.data.frame(ifelse(is.na(Merge2Edges$Path) == TRUE,
-                                    Merge2Edges$Company,
-                                    paste2(Merge2Edges[2:1], sep = ",")))
-colnames(Merge2Edges) <- c("Path")
-
-Merge2Edges <- data.frame(str_split_fixed(Merge2Edges$Path, "," ,15))
-
-Merge2Edges <- Merge2Edges[!sapply(Merge2Edges, function(x) all(x == ""))]
+rm(i)
 
 Merge2Edges <- cbind(Merge2Edges, apply(Merge2Edges,1, function(x) last(x[x!=""])))
 
@@ -736,7 +699,7 @@ for (i in min(Deals1L3$Year, na.rm = TRUE):max(Deals1L3$Year, na.rm = TRUE)) {
   
 }
 
-names(Deals.List.ByyearL3) <- lapply(1:length(Deals.List.ByyearL3), function(x) paste0("Deals",(2022-x)))
+names(Deals.List.ByyearL3) <- pblapply(1:length(Deals.List.ByyearL3), function(x) paste0("Deals",(2022-x)))
 
 
 
@@ -745,28 +708,28 @@ names(Deals.List.ByyearL3) <- lapply(1:length(Deals.List.ByyearL3), function(x) 
 ## Pre-filter Deals List
 
 
-Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Minority") == FALSE)))
+Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Minority") == FALSE)))
 
-Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Share buyback") == FALSE)))
+Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Share buyback") == FALSE)))
 
-Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Capital Increase") == FALSE)))
-Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Capital increase") == FALSE)))
-Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], all(is.na(`Deal type`)) == FALSE))
+Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Capital Increase") == FALSE)))
+Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, "Capital increase") == FALSE)))
+Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], all(is.na(`Deal type`)) == FALSE))
 
 for(i in 50:100) {
-  Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
+  Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
 }
 
 for(i in 1:49) {
-  Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
+  Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
 }
 
 for (i in 1:49) {
-  Deals.List.ByyearL3 <- lapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
+  Deals.List.ByyearL3 <- pblapply(1:length(Deals.List.ByyearL3), function(x) list.filter(Deals.List.ByyearL3[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
 } 
 
 
-names(Deals.List.ByyearL3) <- lapply(1:length(Deals.List.ByyearL3), function(x) paste0("Deals",(2022-x)))
+names(Deals.List.ByyearL3) <- pblapply(1:length(Deals.List.ByyearL3), function(x) paste0("Deals",(2022-x)))
 
 
 ## for 2014 there are no valid deals, we must therefore insert a dummy data.frame for the next loop to work
@@ -778,7 +741,6 @@ Deals.List.ByyearL3[["Deals2014"]][[1]][1,1] <- "DUMMY"
 
 
 ## check if acquirer is still owner 
-##Scheme:  SELECT * FROM Edgelist2021 WHERE Deals2021$Acquirer LEFT OF Deals2021$Target
 
 
 Mergelist2.List <- vector(mode = "list")
@@ -821,7 +783,7 @@ for (i in 1:length(Deals.List.ByyearL3)) {
   
 }
 
-names(Mergelist2.List) <- lapply(1:length(Mergelist2.List), function(x) paste0("Mergelist2-",(2022-x)))
+names(Mergelist2.List) <- pblapply(1:length(Mergelist2.List), function(x) paste0("Mergelist2-",(2022-x)))
 
 
 for (i in 1:4) {
@@ -832,7 +794,6 @@ rm(i,j,k)
 
 
 ## check if Vendor not  the owner anymore  
-##Scheme:  SELECT * FROM Edgelist2021 WHERE Deals2021$Acquirer LEFT OF Deals2021$Target
 
 
 for (i in 1:length(Deals.List.ByyearL3)) {
@@ -871,7 +832,7 @@ for (i in 1:length(Deals.List.ByyearL3)) {
   
 }
 
-names(Mergelist2.List) <- lapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
+names(Mergelist2.List) <- pblapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 for (i in 1:4) {
@@ -883,10 +844,10 @@ rm(i,j,k)
 
 ## Standardize column names
 
-Mergelist2.List <- lapply(1:length(Mergelist2.List), function(x) as.data.frame(Mergelist2.List[[x]]))
-Mergelist2.List <- lapply(1:length(Mergelist2.List), function(x) Mergelist2.List[[x]][!sapply(Mergelist2.List[[x]], function(y) all(y == ""))])
-Mergelist2.List <- lapply(1:length(Mergelist2.List), function(x) setNames(Mergelist2.List[[x]],c(paste0("X",1:ncol(Mergelist2.List[[x]])))))
-names(Mergelist2.List) <- lapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
+Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) as.data.frame(Mergelist2.List[[x]]))
+Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) Mergelist2.List[[x]][!sapply(Mergelist2.List[[x]], function(y) all(y == ""))])
+Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) setNames(Mergelist2.List[[x]],c(paste0("X",1:ncol(Mergelist2.List[[x]])))))
+names(Mergelist2.List) <- pblapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 
@@ -897,9 +858,9 @@ names(Mergelist2.List) <- lapply(1:length(Mergelist2.List), function(x) paste0("
 ## here, we find no companies which ownership changed through deals anymore, we can therefore start with the merges. We first create an appending point at the end of each data frame in the level 2 merge list
 
 
-Mergelist2.List <- lapply(1:length(Mergelist2.List), function(x) cbind(Mergelist2.List[[x]], apply(Mergelist2.List[[x]],1, function(y) last(y[y!=""]))))
-Mergelist2.List <- lapply(1:length(Mergelist2.List), function(x) setNames(Mergelist2.List[[x]],c(paste0("X",1:ncol(Mergelist2.List[[x]])))))
-names(Mergelist2.List) <- lapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
+Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) cbind(Mergelist2.List[[x]], apply(Mergelist2.List[[x]],1, function(y) last(y[y!=""]))))
+Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) setNames(Mergelist2.List[[x]],c(paste0("X",1:ncol(Mergelist2.List[[x]])))))
+names(Mergelist2.List) <- pblapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 
@@ -942,7 +903,7 @@ for (i in 2:length(Mergelist1.List)) {
   Temp5[Temp5 == ""] <- NA
   
   
-  Temp5 <- Temp5[,which(unlist(lapply(Temp5, function(x) !all(is.na(x))))),with=F]
+  Temp5 <- Temp5[,which(unlist(pblapply(Temp5, function(x) !all(is.na(x))))),with=F]
   
   
   Temp6 <- apply(Temp1,1, function(x) x["rownumbers"] %in% Temp5$rownumbers)
@@ -991,7 +952,7 @@ for(i in 1:7) {
 
 rm(i)
 
-names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
+names(Mergelist1.List) <- pblapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 
@@ -999,9 +960,9 @@ names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("
 ## again create appending points at merge list. this time level 1
 
 
-Mergelist1.List <- lapply(1:length(Mergelist1.List), function(x) cbind(Mergelist1.List[[x]], apply(Mergelist1.List[[x]],1, function(y) last(y[y!=""]))))
-Mergelist1.List <- lapply(1:length(Mergelist1.List), function(x) setNames(Mergelist1.List[[x]],c(paste0("X",1:ncol(Mergelist1.List[[x]])))))
-names(Mergelist1.List) <- lapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
+Mergelist1.List <- pblapply(1:length(Mergelist1.List), function(x) cbind(Mergelist1.List[[x]], apply(Mergelist1.List[[x]],1, function(y) last(y[y!=""]))))
+Mergelist1.List <- pblapply(1:length(Mergelist1.List), function(x) setNames(Mergelist1.List[[x]],c(paste0("X",1:ncol(Mergelist1.List[[x]])))))
+names(Mergelist1.List) <- pblapply(1:length(Mergelist1.List), function(x) paste0("Mergelist-",(2022-x)))
 
 
 
@@ -1045,7 +1006,7 @@ Temp5[Temp5 == ""] <- NA
   
 
   
-Temp5 <- Temp5[,which(unlist(lapply(Temp5, function(x) !all(is.na(x))))),with=F]
+Temp5 <- Temp5[,which(unlist(pblapply(Temp5, function(x) !all(is.na(x))))),with=F]
 
 
 Temp6 <- apply(Temp1,1, function(x) x["rownumbers"] %in% Temp5$rownumbers)
@@ -1095,16 +1056,16 @@ rm(list= paste0("Temp",i))
 
 rm(i)
 
-names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
+names(Edgelist.List) <- pblapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 
 ## Standardize column names
 
-Edgelist.List <- lapply(1:length(Edgelist.List), function(x) as.data.frame(Edgelist.List[[x]]))
-Edgelist.List <- lapply(1:length(Edgelist.List), function(x) Edgelist.List[[x]][!sapply(Edgelist.List[[x]], function(y) all(y == ""))])
-Edgelist.List <- lapply(1:length(Edgelist.List), function(x) setNames(Edgelist.List[[x]],c(paste0("X",1:ncol(Edgelist.List[[x]])))))
-names(Edgelist.List) <- lapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
+Edgelist.List <- pblapply(1:length(Edgelist.List), function(x) as.data.frame(Edgelist.List[[x]]))
+Edgelist.List <- pblapply(1:length(Edgelist.List), function(x) Edgelist.List[[x]][!sapply(Edgelist.List[[x]], function(y) all(y == ""))])
+Edgelist.List <- pblapply(1:length(Edgelist.List), function(x) setNames(Edgelist.List[[x]],c(paste0("X",1:ncol(Edgelist.List[[x]])))))
+names(Edgelist.List) <- pblapply(1:length(Edgelist.List), function(x) paste0("Edgelist",(2022-x)))
 
 
 ## after those 1105 lines of code, The historic ownership chains should be reconstructed as good as possible (at least to my capabilities) next, I will control for dates of incorporation and (if available) dates of discontinuation

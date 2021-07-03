@@ -1,32 +1,9 @@
 
 
 
-## as I later also want to check the impact of the Energiewende and Orbis does not deliver detailes NACE codes, I decided to put a little merge function here and use NAICS codes as a proxy before creating the networks
-
-## first, I export all necassary BvDID numbers again
-
-
-rio::export(NodelistALL$CompanyBvDID, "ExportNAICS.xlsx")
-
-
-ImportNAICs <- rio::import("ImportNAICS.xlsx", which = "Results")
-
-ImportNAICs <- ImportNAICs[,3:4]
-
-ImportNAICs <- ImportNAICs %>%
-  fill(`BvD ID number`) %>%
-  dplyr::group_by(`BvD ID number`) %>%
-  dplyr::summarize(
-    `NAICS 2017, primary code(s)` = paste2(`NAICS 2017, primary code(s)`, sep = ",", trim = TRUE),)
 
 
 setDT(NodelistALL)
-setDT(ImportNAICs)
-
-setkey(NodelistALL, CompanyBvDID)
-setkey(ImportNAICs, `BvD ID number`)
-
-NodelistALLNAICs <- NodelistALL[ImportNAICs]
 
 
 ## next, before I add geographic data, I replace the ISO code of non-nation tax havens (like guernsey, the city of london etc.) with an own unique code using postcodes, city/state names and company names
@@ -34,36 +11,37 @@ NodelistALLNAICs <- NodelistALL[ImportNAICs]
 
 ## City of London
 
+
 CTLPostcodes <- rio::import("City of London postcodes.csv")
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyPostcode %in% CTLPostcodes$Postcode, "CTL", CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyPostcode %in% CTLPostcodes$Postcode, "CTL", CompanyISO))
 
 
 ## Jersey
 
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('^JE', CompanyPostcode),]$CompanyBvDID, "JE" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('JERSEY|HELIER|CLEMENT|SAVIOUR|MARTIN|GROUVILLE|MARY|JOHN|TRINITY|OUEN|LAWRENCE', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "JE" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('JERSEY', CompanyName),]$CompanyBvDID, "JE" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('^JE', CompanyPostcode),]$CompanyBvDID, "JE" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('JERSEY|HELIER|CLEMENT|SAVIOUR|MARTIN|GROUVILLE|MARY|JOHN|TRINITY|OUEN|LAWRENCE', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "JE" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('JERSEY', CompanyName),]$CompanyBvDID, "JE" ,CompanyISO))
 
 
 ## Isle of Man
 
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('^IM', CompanyPostcode),]$CompanyBvDID, "IM" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('ISLE OF MAN', CompanyName),]$CompanyBvDID, "IM" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('PATRICK|DOUGLAS|RAMSEY|CASTLETOWN|ONCHAN|PEEL|BRADDAN|ERIN|BALLASALLA|MARY|LAXEY|SAINT|KIRK|SANTON|MARLEY|ARBORY|ERIN|BRADDAN|FOXDALE|SODERICK|ANDREAS|BALLAUGH|BRIDE|JURBY|LEZAYRE|JOHNS|JOHN|GREEBA|BALDRINE|LONAN|SULBY|MAUGHOLD', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "IM" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('^IM', CompanyPostcode),]$CompanyBvDID, "IM" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('ISLE OF MAN', CompanyName),]$CompanyBvDID, "IM" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('PATRICK|DOUGLAS|RAMSEY|CASTLETOWN|ONCHAN|PEEL|BRADDAN|ERIN|BALLASALLA|MARY|LAXEY|SAINT|KIRK|SANTON|MARLEY|ARBORY|ERIN|BRADDAN|FOXDALE|SODERICK|ANDREAS|BALLAUGH|BRIDE|JURBY|LEZAYRE|JOHNS|JOHN|GREEBA|BALDRINE|LONAN|SULBY|MAUGHOLD', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "IM" ,CompanyISO))
 
 
 ## Guernsey
 
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('GY', CompanyPostcode)]$CompanyBvDID, "GG" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('GUERNSEY', CompanyName)]$CompanyBvDID, "GG" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('GUERNSEY|ALDERNEY|SARK|HERM|JETHOU|BRECQHOU|LIHOU|BURHOU|CASQUETS|BRECHOU|PIERRE|VALE|TORTEVAL|FOREST|ANDREW|MARTIN|SAMPSON|SAVIOUR|CASTEL', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "GG" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('GY', CompanyPostcode)]$CompanyBvDID, "GG" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('GUERNSEY', CompanyName)]$CompanyBvDID, "GG" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('GUERNSEY|ALDERNEY|SARK|HERM|JETHOU|BRECQHOU|LIHOU|BURHOU|CASQUETS|BRECHOU|PIERRE|VALE|TORTEVAL|FOREST|ANDREW|MARTIN|SAMPSON|SAVIOUR|CASTEL', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "GG" ,CompanyISO))
 
 
 ## Delaware
 
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('^19', CompanyPostcode)][CompanyISO == "US"]$CompanyBvDID, "DEL" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('DELAWARE', CompanyName)][CompanyISO == "US"]$CompanyBvDID, "DEL" ,CompanyISO))
-NodelistALLNAICs <- NodelistALLNAICs %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALLNAICs[grepl('DELAWARE|DOVER|HARRINGTON|LEWES|METROPOLIS|MILFORD|NEW CASTLE|NEWARK|REHOBOTH|SEAFORD|WILMINGTON', CompanyCity)][CompanyISO == "US"]$CompanyBvDID, "DEL" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('^19', CompanyPostcode)][CompanyISO == "US"]$CompanyBvDID, "DEL" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('DELAWARE', CompanyName)][CompanyISO == "US"]$CompanyBvDID, "DEL" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('DELAWARE|DOVER|HARRINGTON|LEWES|METROPOLIS|MILFORD|NEW CASTLE|NEWARK|REHOBOTH|SEAFORD|WILMINGTON', CompanyCity)][CompanyISO == "US"]$CompanyBvDID, "DEL" ,CompanyISO))
 
 
 ## now I assign geocordinates to each country
@@ -72,13 +50,13 @@ Coordinates <- rio::import("Geocoordinates.xlsx")
 Coordinates <- rbind(Coordinates, data.frame(country = "CTL", latitude = "51.51279", longitude = "0.09184", name = "City of London"))
 Coordinates <- rbind(Coordinates, data.frame(country = "DEL", latitude = "39.00000", longitude = "-75.5000", name = "Delaware"))
 Coordinates <- rbind(Coordinates, data.frame(country = "CW", latitude = "12.2135221", longitude = "-68.9495816", name = "Curacao"))
-NodelistALLNAICs <- merge(x=NodelistALLNAICs, y=Coordinates, by.x = "CompanyISO", by.y = "country", all.x = TRUE)
-NodelistALLNAICs <- subset(NodelistALLNAICs, select = c(2,3,1,4:ncol(NodelistALLNAICs)))
+NodelistALL <- merge(x=NodelistALL, y=Coordinates, by.x = "CompanyISO", by.y = "country", all.x = TRUE)
+NodelistALL <- subset(NodelistALL, select = c(2,3,1,4:ncol(NodelistALL)))
 
 
 ## create list of Nodelists for every year
 
-Nodelist.List <- pblapply(1:length(Edgelist.List.Filtered), function (x) x = subset(NodelistALLNAICs, CompanyBvDID %in% as.matrix(Edgelist.List.Filtered[[x]][])))
+Nodelist.List <- pblapply(1:length(Edgelist.List.Filtered), function (x) x = subset(NodelistALL, CompanyBvDID %in% as.matrix(Edgelist.List.Filtered[[x]][])))
 Nodelist.List.Missing <- pblapply(1:length(Edgelist.List.Filtered), function(x) Edgelist.List.Filtered[[x]][sapply(Edgelist.List.Filtered[[x]], function(y) y %notin% Nodelist.List[[x]]$CompanyBvDID)])
 Nodelist.List.Missing <- pblapply(1:length(Nodelist.List.Missing), function(x) data.frame(CompanyBvDID = c(Nodelist.List.Missing[[x]])))
 Nodelist.List.Missing <- pblapply(1:length(Nodelist.List.Missing), function (x) Nodelist.List.Missing[[x]][!apply(Nodelist.List.Missing[[x]],1, function (y) {all  (is.na(y))}),])
@@ -88,10 +66,6 @@ Nodelist.List <- pblapply(1:length(Nodelist.List), function(x) rbind.fill(Nodeli
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]][,1:13])
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), OrbisCompanies$CSHISO[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CSHBvDID)],Nodelist.List[[x]]$CompanyISO)))
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyName = ifelse(is.na(Nodelist.List[[x]]$CompanyName), OrbisCompanies$CSHName[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CSHBvDID)],Nodelist.List[[x]]$CompanyName)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), Merge1$CSHISO[match(Nodelist.List[[x]]$CompanyBvDID, Merge1$CSHBvDID)],Nodelist.List[[x]]$CompanyISO)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyName = ifelse(is.na(Nodelist.List[[x]]$CompanyName), Merge1$CSHName[match(Nodelist.List[[x]]$CompanyBvDID, Merge1$CSHBvDID)],Nodelist.List[[x]]$CompanyName)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), Merge2$CSHISO[match(Nodelist.List[[x]]$CompanyBvDID, Merge2$CSHBvDID)],Nodelist.List[[x]]$CompanyISO)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyName = ifelse(is.na(Nodelist.List[[x]]$CompanyName), Merge2$CSHName[match(Nodelist.List[[x]]$CompanyBvDID, Merge2$CSHBvDID)],Nodelist.List[[x]]$CompanyName)))
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), OrbisCompanies$CompanyISO[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CompanyBvDID)],Nodelist.List[[x]]$CompanyISO)))
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyName = ifelse(is.na(Nodelist.List[[x]]$CompanyName), OrbisCompanies$CompanyName[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CompanyBvDID)],Nodelist.List[[x]]$CompanyName)))
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(longitude = ifelse(is.na(Nodelist.List[[x]]$longitude), Coordinates$longitude[match(Nodelist.List[[x]]$CompanyISO, Coordinates$country)],Nodelist.List[[x]]$longitude)))
@@ -300,6 +274,56 @@ rm(Country.labels)
 rm(factor)
 rm(Edgelist.Network)
 rm(marc)
+
+
+### GUO indicator statistics
+
+GUOindicatorDF <- GUOindicator |> purrr::reduce(left_join, by = "ISO")
+colnames(GUOindicatorDF) <- c("ISO",names(Edgelist.List.Filtered))
+GUOindicatorDF <- GUOindicatorDF[,order(ncol(GUOindicatorDF):1)]
+GUOindicatorDF <- GUOindicatorDF[,c(ncol(GUOindicatorDF), 1:ncol(GUOindicatorDF)-1)]
+
+GUOPlot <- melt(GUOindicatorDF, id="ISO")
+
+colnames(GUOPlot) <- c("ISO","Year","score")
+
+ggplot(data=GUOPlot, aes(x=ISO, y=Year, size=(1/score), color= score, group=ISO)) +
+  scale_color_gradient(low = "red", high = "green") +
+  theme(axis.text.y = element_text(size = 5)) +
+  geom_line()
+
+
+### betweenness centrality statistics
+
+Network.List.Countries.Temp <- pblapply(1:length(Network.List.Countries), function(x) set.vertex.attribute(Network.List.Countries[[x]], "name" , value = V(Network.List.Countries[[x]])$CompanyISO))
+
+BetwCentr <- pblapply(1:length(Network.List.Countries.Temp), function(x) as.data.frame(betweenness(Network.List.Countries.Temp[[x]],V(Network.List.Countries.Temp[[x]])$name, directed = TRUE, normalized = TRUE)))
+BetwCentr <- pblapply(1:length(BetwCentr), function(x) setNames(BetwCentr[[x]],c("BetwCentr")))
+BetwCentr <- pblapply(1:length(BetwCentr), function(x) data.frame("ISO" = c(rownames(BetwCentr[[x]])), "BetwCentr" = c(BetwCentr[[x]]$BetwCentr)))
+BetwCentr <- pblapply(1:length(BetwCentr), function (x) filter (BetwCentr[[x]], ISO != "NA"))
+BetwCentr <- pblapply(1:length(BetwCentr), function (x) filter (BetwCentr[[x]], ISO != "n.a."))
+
+BetwCentrDF <- BetwCentr |> purrr::reduce(left_join, by ="ISO")
+colnames(BetwCentrDF) <- c("ISO",names(Edgelist.List.Filtered))
+BetwCentrDF <- BetwCentrDF[,order(ncol(BetwCentrDF):1)]
+BetwCentrDF <- BetwCentrDF[,c(ncol(BetwCentrDF), 1:ncol(BetwCentrDF)-1)]
+
+BetwCentrPlot <- melt(BetwCentrDF, id="ISO")
+
+colnames(BetwCentrPlot) <- c("ISO", "Year", "BetwCentr")
+BetwCentrPlot[BetwCentrPlot == "NaN"] <- NA
+BetwCentrPlot$BetwCentr <- as.numeric(BetwCentrPlot$BetwCentr)
+BetwCentrPlot$BetwCentr <- round(BetwCentrPlot$BetwCentr, digits = 10)
+BetwCentrPlot <- BetwCentrPlot[!grepl("DE", BetwCentrPlot$ISO),]
+
+ggplot(data=BetwCentrPlot, aes(x=ISO, y=Year, color= BetwCentr, size = BetwCentr, group=ISO)) +
+  scale_color_gradient(low = "green", high = "red") +
+  theme(axis.text.y = element_text(size = 5)) +
+  geom_line()
+
+rm(Network.List.Countries.Temp)
+
+
 
 
 
