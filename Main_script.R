@@ -31,6 +31,8 @@ library(magick)
 library(reshape2)
 library(ggallin)
 library(Hmisc)
+library(BSDA)
+
 
 
 

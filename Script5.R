@@ -66,6 +66,7 @@ for (i in 1:length(EdgelistByGUO)) {
   }
 }
 
+
 ## split sample by year and owning country at any level
 
 EdgelistByanyown <- pblapply(1:length(EdgelistInt), function (x) {
@@ -88,6 +89,32 @@ for (i in 1:length(EdgelistByanyown)) {
     }
   }
 }
+
+
+## split sample by year and owning country at intermediate level
+
+
+EdgelistByintermed <- pblapply(1:length(EdgelistByanyown), function (x) {
+  
+  ISOList <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))))
+  
+  pblapply(1:nrow(ISOList), function(i) {
+    dplyr::setdiff(EdgelistByanyown[[x]][[i]], EdgelistByGUO[[x]][[i]])
+  })})
+
+EdgelistByintermed <- pblapply(1:length(EdgelistByintermed), function(x) {pblapply(1:length(EdgelistByintermed[[x]]), function(y)  {if (isTruthy(EdgelistByintermed[[x]][[y]])) {  EdgelistByintermed[[x]][[y]][!is.na(EdgelistByintermed[[x]][[y]][,1]),]}})})
+
+names(EdgelistByintermed) <- names(EdgelistInt)
+for (i in 1:length(EdgelistByintermed)) {names(EdgelistByintermed[[i]]) <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))))$ISO}
+
+for (i in 1:length(EdgelistByintermed)) {
+  for (j in 1:length(EdgelistByintermed[[i]])) {
+    if (nrow(EdgelistByintermed[[i]][[j]]) == 0) {
+      EdgelistByintermed[[i]][[j]][1,] <- NA
+    }
+  }
+}
+
 
 
 ## split sample by year and subsidiary country at any level
