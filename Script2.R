@@ -1,3 +1,51 @@
+## Load libraries
+
+library(plyr)
+library(dplyr)
+library(data.table)
+library(datasets)
+library(igraph)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(graphlayouts)
+library(RColorBrewer)
+library(cluster)
+library(rio)
+library(stringr)
+library(stringi)
+library(qdap)
+library(sqldf)
+library(lubridate)
+library(rlist)
+library(purrr)
+library(taRifx)
+library(devtools)
+library(splitstackshape)
+library(pbapply)
+library(maps)
+library(geosphere)
+library(ggplot2)
+library(shiny)
+library(magick)
+library(reshape2)
+library(ggallin)
+library(Hmisc)
+library(BSDA)
+library(marima)
+library(lmtest)
+library(dynlm)
+library(tseries)
+library(XML)
+library(xml2)
+library(foreach)
+library(doParallel)
+library(snow)
+library(doSNOW)
+library(fuzzyjoin)
+library(shadowtext)
+
+
 
 ## to filter the edgelists by date of incorporation, I first extract all unique BvDID numbers for all years
 
@@ -15,9 +63,9 @@ BvDIDALLExport <- as.data.frame(unique(BvDIDALLExport))
 rio::export(BvDIDALLExport, "BvDALLExport.xlsx")
 
 NodelistALL <- rio::import("NodelistALL.xlsx", which = "Results")[-c(1)]
-colnames(NodelistALL) <- colnames(OrbisCompanies[1:11])
+colnames(NodelistALL) <- colnames(OrbisCompanies[1:12])
 
- 
+
 NodelistALL <- NodelistALL %>%
   fill(CompanyBvDID, CompanyName) %>%
   dplyr::group_by(CompanyBvDID) %>%
@@ -26,6 +74,7 @@ NodelistALL <- NodelistALL %>%
     CompanyISO = first(CompanyISO),
     CompanyNACECore = first(CompanyNACECore),
     CompanyNACE = toString(unique(na.omit(CompanyNACE))),
+    CompanyType = toString(unique(na.omit(CompanyType))),
     CompanyPostcode = first(CompanyPostcode),
     CompanyCity = first(CompanyCity),
     CompanyState = first(CompanyState),
@@ -37,6 +86,32 @@ NodelistALL <- NodelistALL %>%
 
 ## because some BvDID numbers were removed from orbis or have been changed, we merge all company Data that we have at this point
 
+NodelistMissing <- subset(OrbisCompanies[,13:ncol(OrbisCompanies)], OrbisCompanies$CSHBvDID %notin% OrbisCompanies$CompanyBvDID & OrbisCompanies$CSHBvDID %notin% NodelistALL$CompanyBvDID & OrbisCompanies$CSHBvDID %notin% Merge1$CompanyBvDID & OrbisCompanies$CSHBvDID %notin% Merge2$CompanyBvDID)
+NodelistMissing <- rbind(NodelistMissing, subset(Merge1[,13:ncol(Merge1)], Merge1$CSHBvDID %notin% OrbisCompanies$CompanyBvDID & Merge1$CSHBvDID %notin% NodelistALL$CompanyBvDID & Merge1$CSHBvDID %notin% Merge1$CompanyBvDID & Merge1$CSHBvDID %notin% Merge2$CompanyBvDID))
+NodelistMissing <- rbind(NodelistMissing, subset(Merge2[,13:ncol(OrbisCompanies)], Merge2$CSHBvDID %notin% OrbisCompanies$CompanyBvDID & Merge2$CSHBvDID %notin% NodelistALL$CompanyBvDID & Merge2$CSHBvDID %notin% Merge1$CompanyBvDID & Merge2$CSHBvDID %notin% Merge2$CompanyBvDID))
+NodelistMissing <- unique(NodelistMissing)
+
+NodelistMissing <- NodelistMissing[!is.na(NodelistMissing$CSHBvDID),]
+NodelistMissing$CSHLevel <- NULL
+
+names(NodelistMissing) = c("CompanyName", "CompanyBvDID", "CompanyISO", "CompanyState","CompanyCity","CompanyNACECore","CompanyType","CompanyPostcode")
+
+
+
+NodelistMissing <- NodelistMissing %>%
+  dplyr::group_by(CompanyBvDID) %>%
+  dplyr::summarize(
+    CompanyName = first(CompanyName),
+    CompanyISO = first(CompanyISO),
+    CompanyNACECore = first(CompanyNACECore),
+    CompanyType = toString(unique(na.omit(CompanyType))),
+    CompanyPostcode = first(CompanyPostcode),
+    CompanyCity = first(CompanyCity),
+    CompanyState = first(CompanyState)
+  )
+
+
+
 
 Merge1 <- Merge1 <- Merge1 %>%
   fill(CompanyBvDID, CompanyName) %>%
@@ -46,6 +121,7 @@ Merge1 <- Merge1 <- Merge1 %>%
     CompanyISO = first(CompanyISO),
     CompanyNACECore = first(CompanyNACECore),
     CompanyNACE = toString(unique(na.omit(CompanyNACE))),
+    CompanyType = toString(unique(na.omit(CompanyType))),
     CompanyPostcode = first(CompanyPostcode),
     CompanyCity = first(CompanyCity),
     CompanyState = first(CompanyState),
@@ -63,6 +139,7 @@ Merge2 <- Merge2 <- Merge1 %>%
     CompanyISO = first(CompanyISO),
     CompanyNACECore = first(CompanyNACECore),
     CompanyNACE = toString(unique(na.omit(CompanyNACE))),
+    CompanyType = toString(unique(na.omit(CompanyType))),
     CompanyPostcode = first(CompanyPostcode),
     CompanyCity = first(CompanyCity),
     CompanyState = first(CompanyState),
@@ -72,7 +149,14 @@ Merge2 <- Merge2 <- Merge1 %>%
   )
 
 
-NodelistALL <- rbind(NodelistALL, subset(Nodelist2021, Nodelist2021$CompanyBvDID %notin% NodelistALL$CompanyBvDID), subset(Merge1[1:11],Merge1[1:11]$CompanyBvDID %notin% NodelistALL$CompanyBvDID), subset(Merge2[1:11], Merge2[1:11]$CompanyBvDID %notin% NodelistALL$CompanyBvDID))
+
+
+
+NodelistALL <- rbind(NodelistALL, subset(Nodelist2021, Nodelist2021$CompanyBvDID %notin% NodelistALL$CompanyBvDID), subset(Merge1[1:12],Merge1[1:12]$CompanyBvDID %notin% NodelistALL$CompanyBvDID), subset(Merge2[1:12], Merge2[1:12]$CompanyBvDID %notin% NodelistALL$CompanyBvDID))
+
+
+NodelistALL <- rbind.fill(NodelistALL, subset(NodelistMissing, NodelistMissing$CompanyBvDID %notin% NodelistALL$CompanyBvDID))
+
 
 NodelistALL <- unique(NodelistALL)
 

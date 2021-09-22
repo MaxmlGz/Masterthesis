@@ -32,34 +32,31 @@ library(reshape2)
 library(ggallin)
 library(Hmisc)
 library(BSDA)
+library(marima)
+library(lmtest)
+library(dynlm)
+library(tseries)
+library(XML)
+library(xml2)
+library(foreach)
+library(doParallel)
+library(snow)
+library(doSNOW)
+library(fuzzyjoin)
+library(shadowtext)
 
+
+## define notin function
+
+'%notin%' <- Negate('%in%')
 
 
 
 ## Import raw data from Orbis
 
-OrbisCompanies1 <- rio::import("Orbis companies 2021/Export 13_03_2021 11_56.xlsx", which = "Results")
-OrbisCompanies2 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_04.xlsx", which = "Results")
-OrbisCompanies3 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_10.xlsx", which = "Results")
-OrbisCompanies4 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_16.xlsx", which = "Results")
-OrbisCompanies5 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_32.xlsx", which = "Results")
-OrbisCompanies6 <- rio::import("Orbis companies 2021/Export 13_03_2021 12_35.xlsx", which = "Results")
+OrbisCompanies <- rio::import("Orbis companies 2021/Orbis Export Companies 01.08.2021.xlsx", which = "Results")
 
 
-
-## Merge tables (append)
-
-OrbisCompanies <- rbind(OrbisCompanies1, OrbisCompanies2, OrbisCompanies3, OrbisCompanies4, OrbisCompanies5, OrbisCompanies6)
-
-
-
-## Cleanup 
-
-for (i in 1:6){
-  rm(list=paste0("OrbisCompanies",i))
-}  
-
-rm(i)
 
 
 ## Export CSH ID's that are not in company list to Orbis (to get all dates of incorporation)
@@ -74,7 +71,7 @@ rio::export(CSHBViDs2, "CSHList.csv")
 
 ## Import CSH list to R
 
-OrbisCSH <- rio::import("Orbis CSH companies 2021/Export 01_04_2021 14_19.xlsx", which = "Results")
+OrbisCSH <- rio::import("Orbis companies 2021/Orbis Export CSH 01.08.2021.xlsx", which = "Results")
 
 
 
@@ -106,13 +103,14 @@ rm(i)
 
 ## create nodelist of 2021 by merging companies and chs' 
 
-Nodelist2021 <- rbind(OrbisCompanies[1:11], OrbisCSH) %>%
+Nodelist2021 <- rbind(OrbisCompanies[1:12], OrbisCSH) %>%
                       dplyr::group_by(CompanyBvDID) %>%
                       dplyr::summarize(
                                 CompanyName = first(CompanyName),
                                 CompanyISO = first(CompanyISO),
                                 CompanyNACECore = first(CompanyNACECore),
                                 CompanyNACE = toString(unique(na.omit(CompanyNACE))),
+                                CompanyType = toString(unique(na.omit(CompanyType))),
                                 CompanyPostcode = first(CompanyPostcode),
                                 CompanyCity = first(CompanyCity),
                                 CompanyState = first(CompanyState),
@@ -178,11 +176,11 @@ for(i in 50:100) {
 Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased from ",i,".*")) == FALSE)))
 }
 
-for(i in 1:49) {
+for(i in 0:49) {
     Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition increased .* to",i,"\\.*")) == FALSE)))
 }
 
-for (i in 1:49) {
+for (i in 0:49) {
 Deals.List.Byyear <- pblapply(1:length(Deals.List.Byyear), function(x) list.filter(Deals.List.Byyear[[x]], any(str_detect(`Deal type`, paste0("Acquisition ",i,"\\.")) == FALSE)))
 } 
 
@@ -734,13 +732,6 @@ for (i in 1:49) {
 names(Deals.List.ByyearL3) <- pblapply(1:length(Deals.List.ByyearL3), function(x) paste0("Deals",(2022-x)))
 
 
-## for 2014 there are no valid deals, we must therefore insert a dummy data.frame for the next loop to work
-
-Deals.List.ByyearL3[["Deals2014"]][[1]] <- Deals.List.ByyearL3[[1]][[1]][NULL,]
-
-Deals.List.ByyearL3[["Deals2014"]][[1]][1,1] <- "DUMMY"
-
-
 
 ## check if acquirer is still owner 
 
@@ -850,8 +841,6 @@ Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) as.data.frame
 Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) Mergelist2.List[[x]][!sapply(Mergelist2.List[[x]], function(y) all(y == ""))])
 Mergelist2.List <- pblapply(1:length(Mergelist2.List), function(x) setNames(Mergelist2.List[[x]],c(paste0("X",1:ncol(Mergelist2.List[[x]])))))
 names(Mergelist2.List) <- pblapply(1:length(Mergelist2.List), function(x) paste0("Mergelist-",(2022-x)))
-
-
 
 
 

@@ -1,4 +1,49 @@
+## Load libraries
 
+library(plyr)
+library(dplyr)
+library(data.table)
+library(datasets)
+library(igraph)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(graphlayouts)
+library(RColorBrewer)
+library(cluster)
+library(rio)
+library(stringr)
+library(stringi)
+library(qdap)
+library(sqldf)
+library(lubridate)
+library(rlist)
+library(purrr)
+library(taRifx)
+library(devtools)
+library(splitstackshape)
+library(pbapply)
+library(maps)
+library(geosphere)
+library(ggplot2)
+library(shiny)
+library(magick)
+library(reshape2)
+library(ggallin)
+library(Hmisc)
+library(BSDA)
+library(marima)
+library(lmtest)
+library(dynlm)
+library(tseries)
+library(XML)
+library(xml2)
+library(foreach)
+library(doParallel)
+library(snow)
+library(doSNOW)
+library(fuzzyjoin)
+library(shadowtext)
 
 
 
@@ -32,7 +77,7 @@ NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% Nod
 
 ## Guernsey
 
-NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('GY', CompanyPostcode)]$CompanyBvDID, "GG" ,CompanyISO))
+NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('^GY', CompanyPostcode)]$CompanyBvDID, "GG" ,CompanyISO))
 NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('GUERNSEY', CompanyName)]$CompanyBvDID, "GG" ,CompanyISO))
 NodelistALL <- NodelistALL %>% mutate(CompanyISO = ifelse (CompanyBvDID %in% NodelistALL[grepl('GUERNSEY|ALDERNEY|SARK|HERM|JETHOU|BRECQHOU|LIHOU|BURHOU|CASQUETS|BRECHOU|PIERRE|VALE|TORTEVAL|FOREST|ANDREW|MARTIN|SAMPSON|SAVIOUR|CASTEL', CompanyCity),][CompanyISO == "GB"]$CompanyBvDID, "GG" ,CompanyISO))
 
@@ -53,35 +98,47 @@ Coordinates <- rbind(Coordinates, data.frame(country = "CW", latitude = "12.2135
 NodelistALL <- merge(x=NodelistALL, y=Coordinates, by.x = "CompanyISO", by.y = "country", all.x = TRUE)
 NodelistALL <- subset(NodelistALL, select = c(2,3,1,4:ncol(NodelistALL)))
 
+NodelistALL$CompanyISO[NodelistALL$CompanyISO == "n.a"] <- NA
+NodelistALL$CompanyISO[NodelistALL$CompanyISO == "-"] <- NA
 
 ## create list of Nodelists for every year
 
 Nodelist.List <- pblapply(1:length(Edgelist.List.Filtered), function (x) x = subset(NodelistALL, CompanyBvDID %in% as.matrix(Edgelist.List.Filtered[[x]][])))
-Nodelist.List.Missing <- pblapply(1:length(Edgelist.List.Filtered), function(x) Edgelist.List.Filtered[[x]][sapply(Edgelist.List.Filtered[[x]], function(y) y %notin% Nodelist.List[[x]]$CompanyBvDID)])
-Nodelist.List.Missing <- pblapply(1:length(Nodelist.List.Missing), function(x) data.frame(CompanyBvDID = c(Nodelist.List.Missing[[x]])))
-Nodelist.List.Missing <- pblapply(1:length(Nodelist.List.Missing), function (x) Nodelist.List.Missing[[x]][!apply(Nodelist.List.Missing[[x]],1, function (y) {all  (is.na(y))}),])
-Nodelist.List.Missing <- pblapply(1:length(Nodelist.List.Missing), function(x) data.frame(CompanyBvDID = c(Nodelist.List.Missing[[x]])))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) rbind(Nodelist.List[[x]],unique(Nodelist.List.Missing[[x]]), fill = TRUE))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function(x) rbind.fill(Nodelist.List[[x]], data.frame(NA)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]][,1:13])
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), OrbisCompanies$CSHISO[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CSHBvDID)],Nodelist.List[[x]]$CompanyISO)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyName = ifelse(is.na(Nodelist.List[[x]]$CompanyName), OrbisCompanies$CSHName[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CSHBvDID)],Nodelist.List[[x]]$CompanyName)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), OrbisCompanies$CompanyISO[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CompanyBvDID)],Nodelist.List[[x]]$CompanyISO)))
-Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyName = ifelse(is.na(Nodelist.List[[x]]$CompanyName), OrbisCompanies$CompanyName[match(Nodelist.List[[x]]$CompanyBvDID, OrbisCompanies$CompanyBvDID)],Nodelist.List[[x]]$CompanyName)))
+Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]][,1:14])
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(longitude = ifelse(is.na(Nodelist.List[[x]]$longitude), Coordinates$longitude[match(Nodelist.List[[x]]$CompanyISO, Coordinates$country)],Nodelist.List[[x]]$longitude)))
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(latitude = ifelse(is.na(Nodelist.List[[x]]$latitude), Coordinates$latitude[match(Nodelist.List[[x]]$CompanyISO, Coordinates$country)],Nodelist.List[[x]]$latitude)))
 Nodelist.List <- pblapply(1:length(Nodelist.List), function (x) Nodelist.List[[x]] %>% dplyr::mutate(CompanyISO = ifelse(is.na(Nodelist.List[[x]]$CompanyISO), "NA" , Nodelist.List[[x]]$CompanyISO)))
+names(Nodelist.List) <- names(Edgelist.List.Filtered)
 
 
 ## create networks for each year - I create one version with non-aggregated vertices (BvDID) and one version with collapsed, aggregated nodes (ISO)
 
-Edgelist.Network <- pblapply(1:(length(Edgelist.List.Filtered)-3), function (x) as.data.frame(do.call(bind_rows, lapply(1:(ncol(Edgelist.List.Filtered[[x]])-1), function(y) Edgelist.List.Filtered[[x]][,y:(y+1)]))))
+
+for(i in 1:length(Edgelist.List.Filtered)) {
+  if(ncol(Edgelist.List.Filtered[[i]]) > 1 ) {next}
+  Edgelist.List.Filtered[[i]] <- cbind(Edgelist.List.Filtered[[i]], c(NA))  }
+
+Edgelist.Network <- pblapply(1:length(Edgelist.List.Filtered), function (x) as.data.frame(do.call(bind_rows, lapply(1:(ncol(Edgelist.List.Filtered[[x]])-1), function(y) Edgelist.List.Filtered[[x]][,y:(y+1)]))))
 Edgelist.Network <- pblapply(1:length(Edgelist.Network), function(x)  {t(apply(Edgelist.Network[[x]],1,function(y) {c(y[!is.na(y)],y[is.na(y)])}))})
 Edgelist.Network <- pblapply(1:length(Edgelist.Network), function(x) Edgelist.Network[[x]][,!apply(Edgelist.Network[[x]],2, function(y) all(is.na(y)))])
 Edgelist.Network <- pblapply(1:length(Edgelist.Network), function(x) as.data.frame(Edgelist.Network[[x]]))
-Edgelist.Network <- c(Edgelist.Network, lapply((length(Edgelist.List.Filtered)-2):length(Edgelist.List.Filtered), function (x) x = cbind(Edgelist.List.Filtered[[x]], NA)))
 Edgelist.Network <- pblapply(1:length(Edgelist.Network), function (x) Edgelist.Network[[x]][!apply(Edgelist.Network[[x]],1, function (y) {all  (is.na(y))}),])
 names(Edgelist.Network) <- names(Edgelist.List.Filtered)
+
+
+for(i in 1:length(Edgelist.Network)) {
+  if(isTruthy(ncol(Edgelist.Network[[i]]))) {next}
+  Edgelist.Network[[i]] <- as.data.frame(cbind(Edgelist.Network[[i]], c(NA)))
+  names(Edgelist.Network[[i]]) <- names(Edgelist.Network[[1]])
+  }
+
+
+
+for (i in 1:length(Nodelist.List)) {
+  Nodelist.List[[i]] <- rbind(Nodelist.List[[i]], NA, fill = TRUE)
+  Nodelist.List[[i]]$CompanyISO[is.na(Nodelist.List[[i]]$CompanyISO)] <- "NA"
+  Nodelist.List[[i]]$x <- NULL
+}
 
 
 
@@ -149,7 +206,7 @@ Temp <- TempVis5[[x]][apply(TempVis5[[x]], 1 , function(y) max(which(!is.na(y)))
 if (!isTruthy(Temp)) next
 if (nrow(Temp)==0 | ncol(Temp)== 0) next
 
-Temp <- Temp[apply(Temp, 1, function(y) distinct(y) > 1),]
+Temp <- Temp[apply(Temp, 1, function(y) distinct(y[!is.na(y)]) > 1),]
 if (!isTruthy(Temp)) next
 if (nrow(Temp)==0 | ncol(Temp)== 0) next
 
@@ -245,7 +302,7 @@ names(Network.Graph) <- names(Edgelist.List.Filtered)
 
 for (i in 1:length(Network.Graph)) 
 {
-svg(paste0("./plot/",names(Network.Graph[i]),".svg"))
+svg(paste0("./Interactive Maps/images/",names(Network.Graph[i]),".svg"))
 plot(Network.Graph[[i]])
 dev.off()
 }
@@ -278,19 +335,38 @@ rm(marc)
 
 ### GUO indicator statistics
 
+
+GUOindicator_harmonized <- GUOindicator
+
+for(i in 1:length(GUOindicator_harmonized))
+  {range <- range(GUOindicator_harmonized[[i]]$score)
+  GUOindicator_harmonized[[i]]$score = (GUOindicator_harmonized[[i]]$score - range[1]) / diff(range) }
+
+
+
+
 GUOindicatorDF <- GUOindicator |> purrr::reduce(left_join, by = "ISO")
 colnames(GUOindicatorDF) <- c("ISO",names(Edgelist.List.Filtered))
 GUOindicatorDF <- GUOindicatorDF[,order(ncol(GUOindicatorDF):1)]
 GUOindicatorDF <- GUOindicatorDF[,c(ncol(GUOindicatorDF), 1:ncol(GUOindicatorDF)-1)]
 
-GUOPlot <- melt(GUOindicatorDF, id="ISO")
+GUOindicatorDF <- GUOindicatorDF[,apply(GUOindicatorDF,2, function(y) any(!is.na(y) & y > 0 & y != "NaN" ))]
 
-colnames(GUOPlot) <- c("ISO","Year","score")
 
-ggplot(data=GUOPlot, aes(x=ISO, y=Year, size=(1/score), color= score, group=ISO)) +
-  scale_color_gradient(low = "red", high = "green") +
-  theme(axis.text.y = element_text(size = 5)) +
-  geom_line()
+GUOindicator_harmonizedDF <- GUOindicator_harmonized |> purrr::reduce(left_join, by = "ISO")
+colnames(GUOindicator_harmonizedDF) <- c("ISO",names(Edgelist.List.Filtered))
+GUOindicator_harmonizedDF <- GUOindicator_harmonizedDF[,order(ncol(GUOindicator_harmonizedDF):1)]
+GUOindicator_harmonizedDF <- GUOindicator_harmonizedDF[,c(ncol(GUOindicator_harmonizedDF), 1:ncol(GUOindicator_harmonizedDF)-1)]
+
+GUOindicator_harmonizedDF <- GUOindicator_harmonizedDF[,apply(GUOindicator_harmonizedDF,2, function(y) any(!is.na(y) & y > 0 & y != "NaN" ))]
+
+
+
+
+
+
+
+
 
 
 ### betweenness centrality statistics
@@ -308,20 +384,31 @@ colnames(BetwCentrDF) <- c("ISO",names(Edgelist.List.Filtered))
 BetwCentrDF <- BetwCentrDF[,order(ncol(BetwCentrDF):1)]
 BetwCentrDF <- BetwCentrDF[,c(ncol(BetwCentrDF), 1:ncol(BetwCentrDF)-1)]
 
-BetwCentrPlot <- melt(BetwCentrDF, id="ISO")
 
-colnames(BetwCentrPlot) <- c("ISO", "Year", "BetwCentr")
-BetwCentrPlot[BetwCentrPlot == "NaN"] <- NA
-BetwCentrPlot$BetwCentr <- as.numeric(BetwCentrPlot$BetwCentr)
-BetwCentrPlot$BetwCentr <- round(BetwCentrPlot$BetwCentr, digits = 10)
-BetwCentrPlot <- BetwCentrPlot[!grepl("DE", BetwCentrPlot$ISO),]
+BetwCentrDF <- BetwCentrDF[,apply(BetwCentrDF,2, function(y) any(!is.na(y) & y > 0 & y != "NaN" ))]
 
-ggplot(data=BetwCentrPlot, aes(x=ISO, y=Year, color= BetwCentr, size = BetwCentr, group=ISO)) +
-  scale_color_gradient(low = "green", high = "red") +
-  theme(axis.text.y = element_text(size = 5)) +
-  geom_line()
 
-rm(Network.List.Countries.Temp)
+
+BetwCentr_harmonized <- BetwCentr
+
+for(i in 1:length(BetwCentr_harmonized)) {BetwCentr_harmonized[[i]] = BetwCentr_harmonized[[i]][BetwCentr_harmonized[[i]]$ISO != "DE",] }
+
+for(i in 1:length(BetwCentr_harmonized))
+{range <- range(BetwCentr_harmonized[[i]]$BetwCentr)
+BetwCentr_harmonized[[i]]$BetwCentr = (BetwCentr_harmonized[[i]]$BetwCentr - range[1]) / diff(range) }
+
+
+
+BetwCentr_harmonizedDF <- BetwCentr_harmonized |> purrr::reduce(left_join, by = "ISO")
+colnames(BetwCentr_harmonizedDF) <- c("ISO",names(Edgelist.List.Filtered))
+BetwCentr_harmonizedDF <- BetwCentr_harmonizedDF[,order(ncol(BetwCentr_harmonizedDF):1)]
+BetwCentr_harmonizedDF <- BetwCentr_harmonizedDF[,c(ncol(BetwCentr_harmonizedDF), 1:ncol(BetwCentr_harmonizedDF)-1)]
+
+BetwCentr_harmonizedDF <- BetwCentr_harmonizedDF[,apply(BetwCentr_harmonizedDF,2, function(y) any(!is.na(y) & y > 0 & y != "NaN" ))]
+
+
+
+rm(range)
 
 
 

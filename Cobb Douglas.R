@@ -1,4 +1,52 @@
+## Load libraries
 
+library(plyr)
+library(dplyr)
+library(data.table)
+library(datasets)
+library(igraph)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(graphlayouts)
+library(RColorBrewer)
+library(cluster)
+library(rio)
+library(stringr)
+library(stringi)
+library(qdap)
+library(sqldf)
+library(lubridate)
+library(rlist)
+library(purrr)
+library(taRifx)
+library(devtools)
+library(splitstackshape)
+library(pbapply)
+library(maps)
+library(geosphere)
+library(ggplot2)
+library(shiny)
+library(magick)
+library(reshape2)
+library(ggallin)
+library(Hmisc)
+library(BSDA)
+library(marima)
+library(lmtest)
+library(dynlm)
+library(tseries)
+library(XML)
+library(xml2)
+library(foreach)
+library(doParallel)
+library(snow)
+library(doSNOW)
+library(fuzzyjoin)
+library(shadowtext)
+
+
+## import orbis data
 
 
 EBT <- rio::import("ImportEBT.xlsx", which = "Results")
@@ -25,21 +73,21 @@ EmployeeCost <- left_join(BvDIDNorm, EmployeeCost, by = "CompanyBVDID")
 
 
 for(i in 1:nrow(EBT)) {
-  for (j in 2:ncol(EBT)) {
+  for (j in 3:ncol(EBT)) {
     EBT[i,j] <- ifelse(!is.na(as.numeric(EBT[i,j])) & !is.na(as.numeric(Assets[i,j])) & !is.na(as.numeric(EmployeeCost[i,j])),  as.numeric(EBT[i,j]) , NA )
   }
 }
 
 
 for(i in 1:nrow(Assets)) {
-  for (j in 2:ncol(Assets)) {
+  for (j in 3:ncol(Assets)) {
     Assets[i,j] <- ifelse(!is.na(as.numeric(EBT[i,j])) & !is.na(as.numeric(Assets[i,j])) & !is.na(as.numeric(EmployeeCost[i,j])),  as.numeric(Assets[i,j]) , NA )
   }
 }
 
 
 for(i in 1:nrow(EmployeeCost)) {
-  for (j in 2:ncol(EmployeeCost)) {
+  for (j in 3:ncol(EmployeeCost)) {
     EmployeeCost[i,j] <- ifelse(!is.na(as.numeric(EBT[i,j])) & !is.na(as.numeric(Assets[i,j])) & !is.na(as.numeric(EmployeeCost[i,j])),  as.numeric(EmployeeCost[i,j]) , NA )
   }
 }
@@ -52,11 +100,14 @@ EBT$sum <- apply(EBT,1,function(y) sum(as.numeric(y), na.rm = TRUE))
 Assets$sum <- apply(Assets,1,function(y) sum(as.numeric(y), na.rm = TRUE))
 
 
+CDEstimate <- lm(log(EBT$sum[EBT$sum > 0]) ~ log(Assets$sum[EBT$sum > 0]) + log(EmployeeCost$sum[EBT$sum > 0]))
 
-CDEstimate <- lm(EBT$sum ~  Assets$sum + EmployeeCost$sum)
+CD <- coefficients(CDEstimate)
 
 
-
+EmployeeCost$sum <- NULL
+EBT$sum <- NULL
+Assets$sum <- NULL
 
 
 
@@ -71,8 +122,8 @@ names(CobDou.List) <- "ByCSH"
 
 CobDou.List[["DeDom"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["DeDom"]][["CompanyList"]][[(i-1)]] <- EdgelistDeDom[[i]]}
-names(CobDou.List[["DeDom"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["DeDom"]][["CompanyList"]][[(i-1)]] <- EdgelistDeDom[[i]]}
+names(CobDou.List[["DeDom"]][["CompanyList"]]) <- paste(2020:2012)
 
 
 for (i in 1:length(CobDou.List[["DeDom"]][["CompanyList"]])) {
@@ -87,8 +138,8 @@ for(i in 2:length(CobDou.List[["DeDom"]][["CompanyList"]])) {
 CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
 
 for (i in 1:nrow(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]])) {
-  for (j in 2:ncol(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]])) {
-    CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,j])) & CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,1] %in% CobDou.List[["DeDom"]][["CompanyList"]][[(j-1)]], CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,j], NA)
+  for (j in 3:ncol(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]])) {
+    CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,j])) & CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,1] %in% CobDou.List[["DeDom"]][["CompanyList"]][[(j-2)]], CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][i,j], NA)
   }}
 
 
@@ -96,8 +147,8 @@ for (i in 1:nrow(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]])) {
 CobDou.List[["DeDom"]][["CobDouunweightedEBT"]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)  
 
 for (i in 1:nrow(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]])) {
-  for (j in 2:ncol(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]])) {
-    CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,j])) & CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,1] %in% CobDou.List[["DeDom"]][["CompanyList"]][[(j-1)]], CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,j], NA)
+  for (j in 3:ncol(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]])) {
+    CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,j])) & CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,1] %in% CobDou.List[["DeDom"]][["CompanyList"]][[(j-2)]], CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][i,j], NA)
   }}
 
 
@@ -105,8 +156,8 @@ for (i in 1:nrow(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]])) {
 CobDou.List[["DeDom"]][["CobDouunweightedAssets"]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)  
 
 for (i in 1:nrow(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]])) {
-  for (j in 2:ncol(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]])) {
-    CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,j])) & CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,1] %in% CobDou.List[["DeDom"]][["CompanyList"]][[(j-1)]], CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,j], NA)
+  for (j in 3:ncol(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]])) {
+    CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,j])) & CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,1] %in% CobDou.List[["DeDom"]][["CompanyList"]][[(j-2)]], CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][i,j], NA)
   }}
 
 
@@ -131,11 +182,13 @@ CobDou.List[["DeDom"]][["CobDouunweighted"]] <- data.frame("ISO" = "DEDOM",
                                                          "LProf" = mean(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][,13], na.rm = TRUE), 
                                                          "CProf" = mean(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][,13], na.rm = TRUE),
                                                          "EBT" = mean(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE),
-                                                         "EBTCD" = mean(CD[1] + CD[2]*CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum + CD[3]*CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum, na.rm = TRUE),
+                                                         "EBTCD" = mean(exp(CD[1] + CD[2]*log(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                         "PercentUW" = mean(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                         "PercentUW-SD" = sd(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                         "PercentW" = sum(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                         "PercentW-SD" = sqrt(wtd.var(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum))^2), na.rm = TRUE)),
                                                          "n" = length(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]]$sum[!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]]$sum))])
 )
-
-
 
 
 
@@ -146,8 +199,8 @@ CobDou.List[["DeDom"]][["CobDouunweighted"]] <- data.frame("ISO" = "DEDOM",
 
 CobDou.List[["DeInt"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["DeInt"]][["CompanyList"]][[(i-1)]] <- EdgelistInt[[i]][sapply(EdgelistInt[[i]], function (y) Nodelist.List[[(i+1)]]$CompanyISO[match(y, Nodelist.List[[(i+1)]]$CompanyBvDID)] == "DE")]}
-names(CobDou.List[["DeInt"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["DeInt"]][["CompanyList"]][[(i-1)]] <- EdgelistInt[[i]][sapply(EdgelistInt[[i]], function (y) Nodelist.List[[(i+1)]]$CompanyISO[match(y, Nodelist.List[[(i+1)]]$CompanyBvDID)] == "DE")]}
+names(CobDou.List[["DeInt"]][["CompanyList"]]) <- paste(2020:2012)
 
 
 for (i in 1:length(CobDou.List[["DeInt"]][["CompanyList"]])) {
@@ -162,8 +215,8 @@ for(i in 2:length(CobDou.List[["DeInt"]][["CompanyList"]])) {
 CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
 
 for (i in 1:nrow(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]])) {
-  for (j in 2:ncol(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]])) {
-    CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,j])) & CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,1] %in% CobDou.List[["DeInt"]][["CompanyList"]][[(j-1)]], CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,j], NA)
+  for (j in 3:ncol(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]])) {
+    CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,j])) & CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,1] %in% CobDou.List[["DeInt"]][["CompanyList"]][[(j-2)]], CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][i,j], NA)
   }}
 
 
@@ -171,8 +224,8 @@ for (i in 1:nrow(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]])) {
 CobDou.List[["DeInt"]][["CobDouunweightedEBT"]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)  
 
 for (i in 1:nrow(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]])) {
-  for (j in 2:ncol(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]])) {
-    CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,j])) & CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,1] %in% CobDou.List[["DeInt"]][["CompanyList"]][[(j-1)]], CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,j], NA)
+  for (j in 3:ncol(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]])) {
+    CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,j])) & CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,1] %in% CobDou.List[["DeInt"]][["CompanyList"]][[(j-2)]], CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][i,j], NA)
   }}
 
 
@@ -180,8 +233,8 @@ for (i in 1:nrow(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]])) {
 CobDou.List[["DeInt"]][["CobDouunweightedAssets"]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)  
 
 for (i in 1:nrow(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]])) {
-  for (j in 2:ncol(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]])) {
-    CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,j])) & CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,1] %in% CobDou.List[["DeInt"]][["CompanyList"]][[(j-1)]], CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,j], NA)
+  for (j in 3:ncol(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]])) {
+    CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,j])) & CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,1] %in% CobDou.List[["DeInt"]][["CompanyList"]][[(j-2)]], CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][i,j], NA)
   }}
 
 
@@ -206,7 +259,11 @@ CobDou.List[["DeInt"]][["CobDouunweighted"]] <- data.frame("ISO" = "DEINT",
                                                            "LProf" = mean(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][,13], na.rm = TRUE), 
                                                            "CProf" = mean(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][,13], na.rm = TRUE),
                                                            "EBT" = mean(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE),
-                                                           "EBTCD" = mean(CD[1] + CD[2]*CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum + CD[3]*CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum, na.rm= TRUE),
+                                                           "EBTCD" = mean(exp(CD[1] + CD[2]*log(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                           "PercentUW" = mean(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                           "PercentUW-SD" = sd(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                           "PercentW" = sum(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum)), na.rm = TRUE),
+                                                           "PercentW-SD" = sqrt(wtd.var(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum) + CD[3]*log(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum))^2), na.rm = TRUE)),
                                                            "n" = length(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]]$sum[!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]]$sum))])
 )
 
@@ -218,8 +275,8 @@ CobDou.List[["DeInt"]][["CobDouunweighted"]] <- data.frame("ISO" = "DEINT",
 
 CobDou.List[["ByCSH"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["ByCSH"]][["CompanyList"]][[(i-1)]] <- EdgelistByCSH[[i]]}
-names(CobDou.List[["ByCSH"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["ByCSH"]][["CompanyList"]][[(i-1)]] <- EdgelistByCSH[[i]]}
+names(CobDou.List[["ByCSH"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(CobDou.List[["ByCSH"]][["CompanyList"]])) {CobDou.List[["ByCSH"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -235,7 +292,7 @@ names(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]]) <- na.omit(uniqu
 
 for (i in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["ByCSH"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByCSH"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByCSH"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -244,8 +301,8 @@ for (i in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]])) {
 
 for (x in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["ByCSH"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["ByCSH"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -256,7 +313,7 @@ names(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]) <- na.omit(unique(Nodelis
 
 for (i in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["ByCSH"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByCSH"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByCSH"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -265,8 +322,8 @@ for (i in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["ByCSH"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["ByCSH"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -276,7 +333,7 @@ names(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]]) <- na.omit(unique(Node
 
 for (i in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["ByCSH"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByCSH"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByCSH"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -285,8 +342,8 @@ for (i in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["ByCSH"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["ByCSH"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
 
 
@@ -314,8 +371,12 @@ CobDou.List[["ByCSH"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(uni
                                                            "LProf" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
                                                            "CProf" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
                                                            "EBT" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                          "n" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
+                                                           "n" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
 
 
 
@@ -328,8 +389,8 @@ CobDou.List[["ByCSH"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(uni
 
 CobDou.List[["ByGUO"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["ByGUO"]][["CompanyList"]][[(i-1)]] <- EdgelistByGUO[[i]]}
-names(CobDou.List[["ByGUO"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["ByGUO"]][["CompanyList"]][[(i-1)]] <- EdgelistByGUO[[i]]}
+names(CobDou.List[["ByGUO"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(CobDou.List[["ByGUO"]][["CompanyList"]])) {CobDou.List[["ByGUO"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -346,7 +407,7 @@ names(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]]) <- na.omit(uniqu
 
 for (i in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["ByGUO"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByGUO"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByGUO"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -355,8 +416,8 @@ for (i in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]])) {
 
 for (x in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["ByGUO"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["ByGUO"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -367,7 +428,7 @@ names(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]) <- na.omit(unique(Nodelis
 
 for (i in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["ByGUO"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByGUO"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByGUO"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -376,8 +437,8 @@ for (i in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["ByGUO"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["ByGUO"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -387,7 +448,7 @@ names(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]]) <- na.omit(unique(Node
 
 for (i in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["ByGUO"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByGUO"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByGUO"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -396,8 +457,8 @@ for (i in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["ByGUO"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["ByGUO"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
 
 
@@ -423,14 +484,12 @@ CobDou.List[["ByGUO"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(uni
                                                            "LProf" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
                                                            "CProf" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
                                                            "EBT" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
                                                            "n" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
-
-
-
-
-
-
 
 
 
@@ -441,8 +500,8 @@ CobDou.List[["ByGUO"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(uni
 
 CobDou.List[["Byanyown"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["Byanyown"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
-names(CobDou.List[["Byanyown"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["Byanyown"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
+names(CobDou.List[["Byanyown"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(CobDou.List[["Byanyown"]][["CompanyList"]])) {CobDou.List[["Byanyown"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -480,7 +539,7 @@ names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) <- na.omit(un
 
 for (i in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["Byanyown"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byanyown"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byanyown"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -489,8 +548,8 @@ for (i in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))
 
 for (x in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Byanyown"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Byanyown"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -501,7 +560,7 @@ names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) <- na.omit(unique(Node
 
 for (i in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["Byanyown"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byanyown"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byanyown"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -510,8 +569,8 @@ for (i in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Byanyown"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Byanyown"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -523,7 +582,7 @@ names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) <- na.omit(unique(N
 
 for (i in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["Byanyown"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byanyown"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byanyown"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -532,8 +591,8 @@ for (i in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Byanyown"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Byanyown"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
 
 
@@ -558,11 +617,12 @@ CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(
                                                            "LProf" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
                                                            "CProf" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
                                                            "EBT" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
                                                            "n" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
-
-
-
 
 
 
@@ -573,8 +633,8 @@ CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(
 
 CobDou.List[["Byintermed"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["Byintermed"]][["CompanyList"]][[(i-1)]] <- EdgelistByintermed[[i]]}
-names(CobDou.List[["Byintermed"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["Byintermed"]][["CompanyList"]][[(i-1)]] <- EdgelistByintermed[[i]]}
+names(CobDou.List[["Byintermed"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(CobDou.List[["Byintermed"]][["CompanyList"]])) {CobDou.List[["Byintermed"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -612,7 +672,7 @@ names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) <- na.omit(
 
 for (i in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["Byintermed"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byintermed"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byintermed"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -621,8 +681,8 @@ for (i in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]
 
 for (x in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Byintermed"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Byintermed"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -633,7 +693,7 @@ names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) <- na.omit(unique(No
 
 for (i in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["Byintermed"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byintermed"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byintermed"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -642,8 +702,8 @@ for (i in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Byintermed"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Byintermed"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -655,7 +715,7 @@ names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) <- na.omit(unique
 
 for (i in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["Byintermed"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byintermed"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byintermed"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -664,8 +724,8 @@ for (i in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Byintermed"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Byintermed"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
 
 
@@ -687,11 +747,15 @@ for (x in 1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]
 
 
 CobDou.List[["Byintermed"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                              "LProf" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
-                                                              "CProf" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
-                                                              "EBT" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                              "EBTCD" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                              "n" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
+                                                           "LProf" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
+                                                           "CProf" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
+                                                           "EBT" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
+                                                           "n" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
 
 
 
@@ -702,8 +766,8 @@ CobDou.List[["Byintermed"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omi
 
 CobDou.List[["Loop"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["Loop"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
-names(CobDou.List[["Loop"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["Loop"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
+names(CobDou.List[["Loop"]][["CompanyList"]]) <- paste(2020:2012)
 
 
 for(i in 1:length(CobDou.List[["Loop"]][["CompanyList"]])) {
@@ -753,7 +817,7 @@ names(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]]) <- na.omit(unique
 
 for (i in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["Loop"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Loop"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Loop"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -762,8 +826,8 @@ for (i in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]])) {
 
 for (x in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Loop"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Loop"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -774,7 +838,7 @@ names(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]) <- na.omit(unique(Nodelist
 
 for (i in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["Loop"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Loop"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Loop"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -783,8 +847,8 @@ for (i in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Loop"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Loop"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -794,7 +858,7 @@ names(CobDou.List[["Loop"]][["CobDouunweightedAssets"]]) <- na.omit(unique(Nodel
 
 for (i in 1:length(CobDou.List[["Loop"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["Loop"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Loop"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Loop"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -803,8 +867,8 @@ for (i in 1:length(CobDou.List[["Loop"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["Loop"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Loop"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Loop"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
 
 
@@ -828,11 +892,15 @@ for (x in 1:length(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]])) {
 
 
 CobDou.List[["Loop"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                                "LProf" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
-                                                                "CProf" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
-                                                                "EBT" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                                "EBTCD" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                                "n" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
+                                                           "LProf" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
+                                                           "CProf" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
+                                                           "EBT" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
+                                                           "n" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
 
 
 #anysub unweighted LProf
@@ -840,8 +908,8 @@ CobDou.List[["Loop"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(uniq
 
 CobDou.List[["Byanysub"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["Byanysub"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
-names(CobDou.List[["Byanysub"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["Byanysub"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
+names(CobDou.List[["Byanysub"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(CobDou.List[["Byanysub"]][["CompanyList"]])) {CobDou.List[["Byanysub"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -878,7 +946,7 @@ names(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]]) <- na.omit(un
 
 for (i in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["Byanysub"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byanysub"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byanysub"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -887,8 +955,8 @@ for (i in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]]))
 
 for (x in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Byanysub"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["Byanysub"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -899,7 +967,7 @@ names(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]) <- na.omit(unique(Node
 
 for (i in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["Byanysub"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byanysub"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byanysub"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -908,8 +976,8 @@ for (i in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Byanysub"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["Byanysub"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -919,7 +987,7 @@ names(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]]) <- na.omit(unique(N
 
 for (i in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["Byanysub"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["Byanysub"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["Byanysub"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -928,11 +996,9 @@ for (i in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Byanysub"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["Byanysub"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
-
-
 
 
 
@@ -953,11 +1019,15 @@ for (x in 1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]]))
 
 
 CobDou.List[["Byanysub"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                          "LProf" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
-                                                          "CProf" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
-                                                          "EBT" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                          "EBTCD" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                          "n" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
+                                                           "LProf" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
+                                                           "CProf" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
+                                                           "EBT" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
+                                                           "n" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
 
 
 
@@ -966,8 +1036,8 @@ CobDou.List[["Byanysub"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(
 
 CobDou.List[["ByanysubGER"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {CobDou.List[["ByanysubGER"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
-names(CobDou.List[["ByanysubGER"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {CobDou.List[["ByanysubGER"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
+names(CobDou.List[["ByanysubGER"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(CobDou.List[["ByanysubGER"]][["CompanyList"]])) {CobDou.List[["ByanysubGER"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -990,7 +1060,7 @@ names(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]) <- na.omit
 
 for (i in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]])) {
   Temp1 <- CobDou.List[["ByanysubGER"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByanysubGER"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByanysubGER"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[i]] <- subset(EmployeeCost, EmployeeCost$CompanyBVDID %in% Temp1)
@@ -999,8 +1069,8 @@ for (i in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]
 
 for (x in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]])) {
   for (i in 1:nrow(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]])) {
-      CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["ByanysubGER"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]])) {
+      CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,j])) & CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,1] %in% CobDou.List[["ByanysubGER"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[x]][i,j], NA)
     }}}
 
 
@@ -1011,7 +1081,7 @@ names(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]) <- na.omit(unique(N
 
 for (i in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]])) {
   Temp1 <- CobDou.List[["ByanysubGER"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByanysubGER"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByanysubGER"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -1020,8 +1090,8 @@ for (i in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]])) {
 
 for (x in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]])) {
   for (i in 1:nrow(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]])) {
-      CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["ByanysubGER"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]])) {
+      CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,j])) & CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,1] %in% CobDou.List[["ByanysubGER"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -1033,7 +1103,7 @@ names(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]) <- na.omit(uniqu
 
 for (i in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]])) {
   Temp1 <- CobDou.List[["ByanysubGER"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[i]])) {
+  for (j in 2:length(CobDou.List[["ByanysubGER"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,CobDou.List[["ByanysubGER"]][["CompanyList"]][[j]][[i]]))
   }
   CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[i]] <- subset(Assets, Assets$CompanyBVDID %in% Temp1)
@@ -1042,8 +1112,8 @@ for (i in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]])) {
 
 for (x in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]])) {
   for (i in 1:nrow(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]])) {
-    for (j in 2:ncol(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]])) {
-      CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["ByanysubGER"]][["CompanyList"]][[(j-1)]][[x]], CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
+    for (j in 3:ncol(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]])) {
+      CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,j] <- ifelse(!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,j])) & CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,1] %in% CobDou.List[["ByanysubGER"]][["CompanyList"]][[(j-2)]][[x]], CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[x]][i,j], NA)
     }}}
 
 
@@ -1066,29 +1136,34 @@ for (x in 1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]
 
 
 CobDou.List[["ByanysubGER"]][["CobDouunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                              "LProf" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
-                                                              "CProf" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
-                                                              "EBT" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
-                                                              "EBTCD" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CD[1] + CD[2]*CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]][,12]  + CD[3]*CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                              "n" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
-
-
+                                                           "LProf" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]][,13], na.rm = TRUE))), 
+                                                           "CProf" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]][,13], na.rm = TRUE))), 
+                                                           "EBT" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))), 
+                                                           "EBTCD" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) mean(exp(CD[1] + CD[2]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y)  mean(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentUW-SD" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y)  sd(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), na.rm = TRUE))),
+                                                           "PercentW-SD" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]), function(y) sqrt(wtd.var(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12] / exp(CD[1] + CD[2]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]]$sum)), sqrt(exp(CD[1] + CD[2]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]]$sum) + CD[3]*log(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]]$sum))^2), na.rm = TRUE)))),
+                                                           "n" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
 
 
 
 #Affiliates  unweighted CobDou
 
 
+
+
 CobDou.List[["Affiliates"]][["CobDouunweighted"]] <- data.frame("ISO" = "Affiliates", 
-                                                              "LProf" = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12] / unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))[,12], na.rm = TRUE), 
-                                                              "CProf" = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12] / unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))[,12], na.rm = TRUE), 
-                                                              "EBT"   = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE), 
-                                                              "EBTCD" = mean(   CD[1] +  CD[2] * unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))[,12] + CD[3] * unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))[,12],na.rm = TRUE),
-                                                              "n" = length(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12][!is.na(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12])]))
-
-
-
-
+                                                                "LProf" = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))[,13], na.rm = TRUE), 
+                                                                "CProf" = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))[,13], na.rm = TRUE),
+                                                                "EBT" = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE),
+                                                                "EBTCD" = mean(exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                                "PercentUW" = mean(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                                "PercentUW-SD" = sd(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                                "PercentW" = sum(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                                "PercentW-SD" = sqrt(wtd.var(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum)), sqrt(exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum))^2), na.rm = TRUE)),
+                                                                "n" = length(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))$sum[!is.na(as.numeric(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))$sum))])
+)
 
 
 
@@ -1097,158 +1172,16 @@ CobDou.List[["Affiliates"]][["CobDouunweighted"]] <- data.frame("ISO" = "Affilia
 
 
 CobDou.List[["GerGUO"]][["CobDouunweighted"]] <- data.frame("ISO" = "GerGUO", 
-                                                                "LProf" = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12] / unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))[,12], na.rm = TRUE), 
-                                                                "CProf" = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12] / unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))[,12], na.rm = TRUE), 
-                                                                "EBT"   = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE), 
-                                                                "EBTCD" = mean(   CD[1] +  CD[2] * unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))[,12] + CD[3] * unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))[,12],na.rm = TRUE),
-                                                                   "n" = length(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12][!is.na(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12])]))
-
-
-#Domestic firms weighted LProf
-
-
-CobDou.List[["DeDom"]][["CobDouweighted"]] <- data.frame("ISO" = "DEDOM", 
-                                                           "LProf" = sum(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE) / sum(CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]][,12], na.rm = TRUE),
-                                                           "CProf" = sum(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE) / sum(CobDou.List[["DeDom"]][["CobDouunweightedAssets"]][,12], na.rm = TRUE),
-                                                           "EBT" = sum(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE),
-                                                           "EBTCD" = sum(CD[1] + CD[2]*CobDou.List[["DeDom"]][["CobDouunweightedAssets"]]$sum + CD[3]*CobDou.List[["DeDom"]][["CobDouunweightedEmployeeCost"]]$sum, na.rm = TRUE),
-                                                           "n" = length(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]]$sum[!is.na(as.numeric(CobDou.List[["DeDom"]][["CobDouunweightedEBT"]]$sum))])
+                                                            "LProf" = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))[,13], na.rm = TRUE), 
+                                                            "CProf" = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))[,13], na.rm = TRUE),
+                                                            "EBT" = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE),
+                                                            "EBTCD" = mean(exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                            "PercentUW" = mean(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                            "PercentUW-SD" = sd(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                            "PercentW" = sum(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum)), na.rm = TRUE),
+                                                            "PercentW-SD" = sqrt(wtd.var(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum)), sqrt(exp(CD[1] + CD[2]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum) + CD[3]*log(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum))^2), na.rm = TRUE)),
+                                                            "n" = length(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))$sum[!is.na(as.numeric(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))$sum))])
 )
-
-
-
-
-
-
-#International firms weighted LProf
-
-
-CobDou.List[["DeInt"]][["CobDouweighted"]] <- data.frame("ISO" = "DEINT", 
-                                                         "LProf" = sum(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE) / sum(CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]][,12], na.rm = TRUE),
-                                                         "CProf" = sum(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE) / sum(CobDou.List[["DeInt"]][["CobDouunweightedAssets"]][,12], na.rm = TRUE),
-                                                         "EBT" = sum(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]][,12], na.rm = TRUE),
-                                                         "EBTCD" = sum(CD[1] + CD[2]*CobDou.List[["DeInt"]][["CobDouunweightedAssets"]]$sum + CD[3]*CobDou.List[["DeInt"]][["CobDouunweightedEmployeeCost"]]$sum, na.rm = TRUE),
-                                                         "n" = length(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]]$sum[!is.na(as.numeric(CobDou.List[["DeInt"]][["CobDouunweightedEBT"]]$sum))])
-)
-
-
-
-#CSH firms weighted LProf 
-
-CobDou.List[["ByCSH"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["ByCSH"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["ByCSH"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                         "n" = c(sapply(1:length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]]), function(y) length(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByCSH"]][["CobDouunweightedEBT"]][[y]][,12]))])))
-)
-
-
-
-
-
-
-
-#GUO firms weighted LProf 
-
-CobDou.List[["ByGUO"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["ByGUO"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["ByGUO"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                         "n" = c(sapply(1:length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByGUO"]][["CobDouunweightedEBT"]][[y]][,12]))])))
-)
-
-
-
-#anyown firms weighted LProf 
-
-CobDou.List[["Byanyown"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                         "n" = c(sapply(1:length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][[y]][,12]))])))
-)
-
-
-
-#intermed firms weighted LProf 
-
-CobDou.List[["Byintermed"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE)),
-                                                          "n" = c(sapply(1:length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][[y]][,12]))]))))
-)
-
-
-
-#Loops firms weighted LProf 
-
-CobDou.List[["Loop"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Loop"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["Loop"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["Loop"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["Loop"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                        "n" = c(sapply(1:length(CobDou.List[["ByLoop"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByLoop"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByLoop"]][["CobDouunweightedEBT"]][[y]][,12]))])))
-)
-
-
-
-
-#anysub firms weighted LProf 
-
-CobDou.List[["Byanysub"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["Byanysub"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["Byanysub"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                         "n" = c(sapply(1:length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["Byanysub"]][["CobDouunweightedEBT"]][[y]][,12]))])))
-)
-
-
-
-#anysubGER firms weighted LProf 
-
-CobDou.List[["ByanysubGER"]][["CobDouweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), 
-                                                         "LProf" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "CProf" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE) / sum(CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE ))), 
-                                                         "EBT" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) sum(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12], na.rm = TRUE))),
-                                                         "EBTCD" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]), function(y) sum(CD[1] + CD[2] * CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]][[y]][,12] + CD[3] * CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]][[y]][,12], na.rm = TRUE))),
-                                                         "n" = c(sapply(1:length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]),function(y) length(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12][!is.na(as.numeric(CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]][[y]][,12]))])))
-)
-
-
-
-#Affiliates  weighted LProf
-
-
-
-CobDou.List[["Affiliates"]][["CobDouweighted"]] <- data.frame("ISO" = "Affiliates", 
-                                                         "LProf" = sum(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE) / sum(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))[,12], na.rm = TRUE),
-                                                         "CProf" = sum(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE) / sum(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))[,12], na.rm = TRUE),
-                                                         "EBT" = sum(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE),
-                                                         "EBTCD" = sum(CD[1] + CD[2]*unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]))$sum + CD[3]*unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]))$sum, na.rm = TRUE),
-                                                         "n" = length(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))$sum[!is.na(as.numeric(unique(Reduce("rbind", CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]))$sum))])
-)
-
-
-
-
-
-#GerGUO weighted CobDou
-
-
-CobDou.List[["GerGUO"]][["CobDouweighted"]] <- data.frame("ISO" = "GerGUO", 
-                                                              "LProf" = sum(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE) / sum(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))[,12], na.rm = TRUE),
-                                                              "CProf" = sum(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE) / sum(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))[,12], na.rm = TRUE),
-                                                              "EBT" = sum(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))[,12], na.rm = TRUE),
-                                                              "EBTCD" = sum(CD[1] + CD[2]*unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedAssets"]]))$sum + CD[3]*unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEmployeeCost"]]))$sum, na.rm = TRUE),
-                                                              "n" = length(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))$sum[!is.na(as.numeric(unique(Reduce("rbind", CobDou.List[["ByanysubGER"]][["CobDouunweightedEBT"]]))$sum))])
-)
-
 
 
 
@@ -1256,37 +1189,46 @@ CobDou.List[["GerGUO"]][["CobDouweighted"]] <- data.frame("ISO" = "GerGUO",
 ## Append rows for DeInt, DeDom, Affiliates, GermanGUO, EBT Havens and EU EBT havens to anyown
 
 CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouunweighted"]], 
-                                                       
-                                                       data.frame("ISO" = "TaxHavens", 
-                                                                  "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens])[,12]) / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens])[,12]), na.rm = TRUE), 
-                                                                  "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens])[,12]) / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens])[,12]), na.rm = TRUE), 
-                                                                  "EBT" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens])[,12]), na.rm = TRUE),
-                                                                  "EBTCD" = mean(CD[1] + CD[2]*unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum + CD[3]*unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum, na.rm = TRUE),
-                                                                  "n" = length(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens])$sum[!is.na(as.numeric(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens])$sum)))]))
+                                                       data.frame("ISO" = "Sinks", 
+                                                                  "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))[,13], na.rm = TRUE), 
+                                                                  "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))[,13], na.rm = TRUE),
+                                                                  "EBT" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12], na.rm = TRUE),
+                                                                  "EBTCD" = mean(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum)), na.rm = TRUE),
+                                                                  "PercentUW" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum)), na.rm = TRUE),
+                                                                  "PercentUW-SD" = sd(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum)), na.rm = TRUE),
+                                                                  "PercentW" = sum(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum)), na.rm = TRUE),
+                                                                  "PercentW-SD" = sqrt(wtd.var(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum)), sqrt(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))$sum))^2), na.rm = TRUE)),
+                                                                  "n" = length(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))$sum[!is.na(as.numeric(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))$sum))])
                                                        ))
 
 
 
 CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouunweighted"]], 
-                                                         
-                                                         data.frame("ISO" = "TaxHavensEU", 
-                                                                    "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])[,12]) / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE), 
-                                                                    "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])[,12]) / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE), 
-                                                                    "EBT" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE),
-                                                                    "EBTCD" = mean(CD[1] + CD[2]*unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum + CD[3]*unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum, na.rm = TRUE),
-                                                                    "n" = length(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])$sum[!is.na(as.numeric(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])$sum)))]))
+                                                         data.frame("ISO" = "Conduits", 
+                                                                    "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))[,13], na.rm = TRUE), 
+                                                                    "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))[,13], na.rm = TRUE),
+                                                                    "EBT" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE),
+                                                                    "EBTCD" = mean(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentUW" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentUW-SD" = sd(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentW" = sum(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentW-SD" = sqrt(wtd.var(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), sqrt(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum))^2), na.rm = TRUE)),
+                                                                    "n" = length(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))$sum[!is.na(as.numeric(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))$sum))])
                                                          ))
 
 
 
 CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouunweighted"]], 
-                                                         
-                                                         data.frame("ISO" = "TaxHavensEUProxy", 
-                                                                    "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])[,12]) / unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE), 
-                                                                    "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])[,12]) / unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE), 
-                                                                    "EBT" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE),
-                                                                    "EBTCD" = mean(CD[1] + CD[2]*unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum + CD[3]*unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum, na.rm = TRUE),
-                                                                    "n" = length(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])$sum[!is.na(as.numeric(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU])$sum)))]))
+                                                         data.frame("ISO" = "ConduitsProxy", 
+                                                                    "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))[,13], na.rm = TRUE), 
+                                                                    "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))[,13], na.rm = TRUE),
+                                                                    "EBT" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE),
+                                                                    "EBTCD" = mean(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentUW" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentUW-SD" = sd(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentW" = sum(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE) / sum(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), na.rm = TRUE),
+                                                                    "PercentW-SD" = sqrt(wtd.var(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum)), sqrt(exp(CD[1] + CD[2]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))$sum) + CD[3]*log(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))$sum))^2), na.rm = TRUE)),
+                                                                    "n" = length(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))$sum[!is.na(as.numeric(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))$sum))])
                                                          ))
 
 
@@ -1302,54 +1244,7 @@ CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- rbind(CobDou.List[["Byanyown"
 
 
 
-
-
-## Append rows for DeInt, DeDom, Affiliates, GermanGUO, EBT Havens and EU EBT havens to anyown
-
-
-CobDou.List[["Byanyown"]][["CobDouweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouweighted"]],
-                                                       data.frame("ISO" = "TaxHavens", 
-                                                                  "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12] / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))[,12], na.rm = TRUE), 
-                                                                  "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12] / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))[,12], na.rm = TRUE), 
-                                                                  "EBT"   = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12], na.rm = TRUE), 
-                                                                  "EBTCD" = mean(   CD[1] +  CD[2] * unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% Taxhavens]))[,12] + CD[3] * unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% Taxhavens]))[,12],na.rm = TRUE),
-                                                                  "n" = length(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12][!is.na(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% Taxhavens]))[,12])]))
-)
-
-
-
-
-CobDou.List[["Byanyown"]][["CobDouweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouweighted"]],
-                                                        data.frame("ISO" = "TaxHavensEU", 
-                                                                "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE), 
-                                                                "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE), 
-                                                                "EBT"   = mean(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE), 
-                                                                "EBTCD" = mean(   CD[1] +  CD[2] * unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))[,12] + CD[3] * unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))[,12],na.rm = TRUE),
-                                                                "n" = length(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12][!is.na(unique(Reduce("rbind",CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byanyown"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12])]))
-)
-
-
-CobDou.List[["Byanyown"]][["CobDouweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouweighted"]],
-                                                       data.frame("ISO" = "TaxHavensEUProxy", 
-                                                                  "LProf" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE), 
-                                                                  "CProf" = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12] / unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE), 
-                                                                  "EBT"   = mean(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12], na.rm = TRUE), 
-                                                                  "EBTCD" = mean(   CD[1] +  CD[2] * unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedAssets"]]) %in% TaxhavensEU]))[,12] + CD[3] * unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEmployeeCost"]]) %in% TaxhavensEU]))[,12],na.rm = TRUE),
-                                                                  "n" = length(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12][!is.na(unique(Reduce("rbind",CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]][names(CobDou.List[["Byintermed"]][["CobDouunweightedEBT"]]) %in% TaxhavensEU]))[,12])]))
-)
-
-
-
-
-
-
-
-CobDou.List[["Byanyown"]][["CobDouweighted"]] <- rbind(CobDou.List[["Byanyown"]][["CobDouweighted"]], 
-                                                     CobDou.List[["DeInt"]][["CobDouweighted"]],
-                                                     CobDou.List[["DeDom"]][["CobDouweighted"]],
-                                                     CobDou.List[["Affiliates"]][["CobDouweighted"]],
-                                                     CobDou.List[["GerGUO"]][["CobDouweighted"]]
-)
+CobDou.List[["Byanyown"]][["CobDouunweighted"]] <- CobDou.List[["Byanyown"]][["CobDouunweighted"]][CobDou.List[["Byanyown"]][["CobDouunweighted"]]$n > 0,]
 
 
 

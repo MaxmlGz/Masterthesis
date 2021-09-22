@@ -1,4 +1,61 @@
+## Load libraries
 
+library(plyr)
+library(dplyr)
+library(data.table)
+library(datasets)
+library(igraph)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(graphlayouts)
+library(RColorBrewer)
+library(cluster)
+library(rio)
+library(stringr)
+library(stringi)
+library(qdap)
+library(sqldf)
+library(lubridate)
+library(rlist)
+library(purrr)
+library(taRifx)
+library(devtools)
+library(splitstackshape)
+library(pbapply)
+library(maps)
+library(geosphere)
+library(ggplot2)
+library(shiny)
+library(magick)
+library(reshape2)
+library(ggallin)
+library(Hmisc)
+library(BSDA)
+library(marima)
+library(lmtest)
+library(dynlm)
+library(tseries)
+library(XML)
+library(xml2)
+library(foreach)
+library(doParallel)
+library(snow)
+library(doSNOW)
+library(fuzzyjoin)
+library(shadowtext)
+
+
+##Export all German energy firms 
+
+ExportETR <- unique(Edgelist.List.Filtered[[1]][sapply(Edgelist.List.Filtered[[1]], function (y) Nodelist.List[[1]]$CompanyISO[match(y, Nodelist.List[[1]]$CompanyBvDID)] == "DE" & str_detect(Nodelist.List[[1]]$CompanyNACECore[match(y, Nodelist.List[[1]]$CompanyBvDID)], "^35"))])
+for (i in 2:10) { ExportETR <- unique(c(ExportETR, unique(Edgelist.List.Filtered[[i]][sapply(Edgelist.List.Filtered[[i]], function (y) Nodelist.List[[i]]$CompanyISO[match(y, Nodelist.List[[i]]$CompanyBvDID)] == "DE" & str_detect(Nodelist.List[[i]]$CompanyNACECore[match(y, Nodelist.List[[i]]$CompanyBvDID)], "^35"))]))) }
+
+rio::export(ExportETR, "ExportETR.xlsx")
+
+
+
+##import orbis data
 
 
 EBT <- rio::import("ImportEBT.xlsx", which = "Results")
@@ -12,6 +69,71 @@ Tax <- full_join(data.frame("CompanyBVDID" = EBT$CompanyBVDID), Tax, by = "Compa
 
 
 
+##equal out samples
+
+for(i in 1:nrow(EBT)) {
+  for (j in 2:ncol(EBT)) {
+    EBT[i,j] <- ifelse(!is.na(as.numeric(EBT[i,j])) & !is.na(as.numeric(Tax[i,j])),  as.numeric(EBT[i,j]) , NA )
+  }
+}
+
+
+for(i in 1:nrow(Tax)) {
+  for (j in 2:ncol(Tax)) {
+    
+    Tax[i,j] <- ifelse(!is.na(as.numeric(Tax[i,j])) & !is.na(as.numeric(EBT[i,j])),  as.numeric(Tax[i,j]) , NA )
+    
+  }
+}
+
+
+
+## Drop company if losses in 2012
+
+EBT <- EBT[EBT[,11] > 0 | is.na(EBT[,11]),]
+EBT <- EBT[!is.na(EBT$CompanyBVDID),]
+Tax <- Tax[Tax$CompanyBVDID %in% EBT$CompanyBVDID,]
+
+
+## Keep 2013 - 2020
+
+EBT[,11] <- NA
+Tax[,11] <- NA
+
+
+EBT[,2] <- NA
+Tax[,2] <- NA
+
+
+## Drop last year if negative profits
+
+
+EBT[,3][EBT[,3] < 0] <- NA
+
+
+
+for(i in 1:nrow(Tax)) {
+  for (j in 2:ncol(Tax)) {
+    
+    Tax[i,j] <- ifelse(!is.na(as.numeric(Tax[i,j])) & !is.na(as.numeric(EBT[i,j])),  as.numeric(Tax[i,j]) , NA )
+    
+  }
+}
+
+
+## Drop if <3 obs
+
+
+EBT <- EBT[apply(EBT,1,function (z) length(z[!is.na(as.numeric(z))]) > 2),]
+Tax <- Tax[Tax$CompanyBVDID %in% EBT$CompanyBVDID,]
+
+
+
+
+
+
+
+
 ETR.List <- vector(mode = "list")
 ETR.List[[1]] <- vector(mode = "list")
 names(ETR.List) <- "ByCSH"
@@ -22,12 +144,12 @@ names(ETR.List) <- "ByCSH"
 
 ETR.List[["DeDom"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["DeDom"]][["CompanyList"]][[(i-1)]] <- EdgelistDeDom[[i]]}
-names(ETR.List[["DeDom"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["DeDom"]][["CompanyList"]][[(i-1)]] <- EdgelistDeDom[[i]]}
+names(ETR.List[["DeDom"]][["CompanyList"]]) <- paste(2020:2012)
 
 
 for (i in 1:length(ETR.List[["DeDom"]][["CompanyList"]])) {
-    ETR.List[["DeDom"]][["CompanyList"]][[i]] <- na.omit(unique(as.character(as.matrix(ETR.List[["DeDom"]][["CompanyList"]][[i]]))))
+  ETR.List[["DeDom"]][["CompanyList"]][[i]] <- na.omit(unique(as.character(as.matrix(ETR.List[["DeDom"]][["CompanyList"]][[i]]))))
 }
 
 Temp1 <- ETR.List[["DeDom"]][["CompanyList"]][[1]]
@@ -38,8 +160,8 @@ for(i in 2:length(ETR.List[["DeDom"]][["CompanyList"]])) {
 ETR.List[["DeDom"]][["ETRunweightedEBT"]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
 
 for (i in 1:nrow(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
-  for (j in 2:ncol(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
-    ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])) & ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,1] %in% ETR.List[["DeDom"]][["CompanyList"]][[(j-1)]], ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j], NA)
+  for (j in 3:ncol(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
+    ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])) & ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,1] %in% ETR.List[["DeDom"]][["CompanyList"]][[(j-2)]], ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j], NA)
   }}
 
 
@@ -55,31 +177,36 @@ for(i in 2:length(ETR.List[["DeDom"]][["CompanyList"]])) {
 
 
 ETR.List[["DeDom"]][["ETRunweightedTax"]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)  
-  
+
 for (i in 1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
-  for (j in 2:ncol(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
-    ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])) & ETR.List[["DeDom"]][["ETRunweightedTax"]][i,1] %in% ETR.List[["DeDom"]][["CompanyList"]][[(j-1)]], ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j], NA)
+  for (j in 3:ncol(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
+    ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])) & ETR.List[["DeDom"]][["ETRunweightedTax"]][i,1] %in% ETR.List[["DeDom"]][["CompanyList"]][[(j-2)]], ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j], NA)
   }}
 
-  
-  for(i in 1:nrow(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
-    for(j in 2:ncol(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
-      ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])) & !is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])) ,  as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])  , NA  )
-    }}
+
+for(i in 1:nrow(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
+  for(j in 2:ncol(ETR.List[["DeDom"]][["ETRunweightedEBT"]])) {
+    ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])) & !is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])) ,  as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])  , NA  )
+  }}
 
 
-  for(i in 1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
-    for(j in 2:ncol(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
-      ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])) & !is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])) ,  as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])  , NA  )
-    }}
+for(i in 1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
+  for(j in 2:ncol(ETR.List[["DeDom"]][["ETRunweightedTax"]])) {
+    ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][i,j])) & !is.na(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])) ,  as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][i,j])  , NA  )
+  }}
 
 
-  ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum <- sapply(1:nrow(ETR.List[["DeDom"]][["ETRunweightedEBT"]]), function (y) sum(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][y,2:11]) , na.rm = TRUE ))
-  ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum[ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum == 0] <- NA
 
-  ETR.List[["DeDom"]][["ETRunweightedTax"]]$sum <- sapply(1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]]), function (y) sum(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][y,2:11]), na.rm = TRUE))
-  ETR.List[["DeDom"]][["ETRunweightedTax"]]$sum[ETR.List[["DeDom"]][["ETRunweightedTax"]]$sum == 0] <- NA
-  ETR.List[["DeDom"]][["ETRunweightedTax"]]$ETR <- sapply(1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]]), function (y) ETR.List[["DeDom"]][["ETRunweightedTax"]][[y,12]] / ETR.List[["DeDom"]][["ETRunweightedEBT"]][[y,12]])
+ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum <- sapply(1:nrow(ETR.List[["DeDom"]][["ETRunweightedEBT"]]), function (y) sum(as.numeric(ETR.List[["DeDom"]][["ETRunweightedEBT"]][y,2:11]) , na.rm = TRUE ))
+ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum[ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum == 0] <- NA
+ETR.List[["DeDom"]][["ETRunweightedTax"]]$sum <- sapply(1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]]), function (y) sum(as.numeric(ETR.List[["DeDom"]][["ETRunweightedTax"]][y,2:11]), na.rm = TRUE))
+ETR.List[["DeDom"]][["ETRunweightedTax"]]$sum[ETR.List[["DeDom"]][["ETRunweightedTax"]]$sum == 0] <- NA
+ETR.List[["DeDom"]][["ETRunweightedTax"]]$ETR <- sapply(1:nrow(ETR.List[["DeDom"]][["ETRunweightedTax"]]), function (y) ETR.List[["DeDom"]][["ETRunweightedTax"]][[y,12]] / ETR.List[["DeDom"]][["ETRunweightedEBT"]][[y,12]])
+
+ETR.List[["DeDom"]][["ETRunweightedEBT"]] <- ETR.List[["DeDom"]][["ETRunweightedEBT"]][!ETR.List[["DeDom"]][["ETRunweightedTax"]]$ETR > 1,]
+ETR.List[["DeDom"]][["ETRunweightedTax"]] <- ETR.List[["DeDom"]][["ETRunweightedTax"]][!ETR.List[["DeDom"]][["ETRunweightedTax"]]$ETR > 1,]
+ETR.List[["DeDom"]][["ETRunweightedTax"]] <- ETR.List[["DeDom"]][["ETRunweightedTax"]][!ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum < 0,]
+ETR.List[["DeDom"]][["ETRunweightedEBT"]] <- ETR.List[["DeDom"]][["ETRunweightedEBT"]][!ETR.List[["DeDom"]][["ETRunweightedEBT"]]$sum < 0,]
 
 
 
@@ -93,13 +220,14 @@ ETR.List[["DeDom"]][["ETRunweighted"]]$high95 <- ETR.List[["DeDom"]][["ETRunweig
 
 ETR.List[["DeDom"]][["ETRunweighted"]] <- ETR.List[["DeDom"]][["ETRunweighted"]][!is.na(ETR.List[["DeDom"]][["ETRunweighted"]]$ETR),]
 
+
 #International firms unweightet ETR
 
 
 ETR.List[["DeInt"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["DeInt"]][["CompanyList"]][[(i-1)]] <- EdgelistInt[[i]][sapply(EdgelistInt[[i]], function (y) Nodelist.List[[(i+1)]]$CompanyISO[match(y, Nodelist.List[[(i+1)]]$CompanyBvDID)] == "DE")]}
-names(ETR.List[["DeInt"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["DeInt"]][["CompanyList"]][[(i-1)]] <- EdgelistInt[[i]][sapply(EdgelistInt[[i]], function (y) Nodelist.List[[(i+1)]]$CompanyISO[match(y, Nodelist.List[[(i+1)]]$CompanyBvDID)] == "DE")]}
+names(ETR.List[["DeInt"]][["CompanyList"]]) <- paste(2020:2012)
 
 
 for (i in 1:length(ETR.List[["DeInt"]][["CompanyList"]])) {
@@ -114,8 +242,8 @@ for(i in 2:length(ETR.List[["DeInt"]][["CompanyList"]])) {
 ETR.List[["DeInt"]][["ETRunweightedEBT"]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
 
 for (i in 1:nrow(ETR.List[["DeInt"]][["ETRunweightedEBT"]])) {
-  for (j in 2:ncol(ETR.List[["DeInt"]][["ETRunweightedEBT"]])) {
-    ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,j])) & ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,1] %in% ETR.List[["DeInt"]][["CompanyList"]][[(j-1)]], ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,j], NA)
+  for (j in 3:ncol(ETR.List[["DeInt"]][["ETRunweightedEBT"]])) {
+    ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,j])) & ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,1] %in% ETR.List[["DeInt"]][["CompanyList"]][[(j-2)]], ETR.List[["DeInt"]][["ETRunweightedEBT"]][i,j], NA)
   }}
 
 
@@ -133,8 +261,8 @@ for(i in 2:length(ETR.List[["DeInt"]][["CompanyList"]])) {
 ETR.List[["DeInt"]][["ETRunweightedTax"]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)  
 
 for (i in 1:nrow(ETR.List[["DeInt"]][["ETRunweightedTax"]])) {
-  for (j in 2:ncol(ETR.List[["DeInt"]][["ETRunweightedTax"]])) {
-    ETR.List[["DeInt"]][["ETRunweightedTax"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeInt"]][["ETRunweightedTax"]][i,j])) & ETR.List[["DeInt"]][["ETRunweightedTax"]][i,1] %in% ETR.List[["DeInt"]][["CompanyList"]][[(j-1)]], ETR.List[["DeInt"]][["ETRunweightedTax"]][i,j], NA)
+  for (j in 3:ncol(ETR.List[["DeInt"]][["ETRunweightedTax"]])) {
+    ETR.List[["DeInt"]][["ETRunweightedTax"]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["DeInt"]][["ETRunweightedTax"]][i,j])) & ETR.List[["DeInt"]][["ETRunweightedTax"]][i,1] %in% ETR.List[["DeInt"]][["CompanyList"]][[(j-2)]], ETR.List[["DeInt"]][["ETRunweightedTax"]][i,j], NA)
   }}
 
 
@@ -152,18 +280,20 @@ for(i in 1:nrow(ETR.List[["DeInt"]][["ETRunweightedTax"]])) {
 
 ETR.List[["DeInt"]][["ETRunweightedEBT"]]$sum <- sapply(1:nrow(ETR.List[["DeInt"]][["ETRunweightedEBT"]]), function (y) sum(as.numeric(ETR.List[["DeInt"]][["ETRunweightedEBT"]][y,2:11]) , na.rm = TRUE ))
 ETR.List[["DeInt"]][["ETRunweightedEBT"]]$sum[ETR.List[["DeInt"]][["ETRunweightedEBT"]]$sum == 0] <- NA
-
 ETR.List[["DeInt"]][["ETRunweightedTax"]]$sum <- sapply(1:nrow(ETR.List[["DeInt"]][["ETRunweightedTax"]]), function (y) sum(as.numeric(ETR.List[["DeInt"]][["ETRunweightedTax"]][y,2:11]), na.rm = TRUE))
 ETR.List[["DeInt"]][["ETRunweightedTax"]]$sum[ETR.List[["DeInt"]][["ETRunweightedTax"]]$sum == 0] <- NA
 ETR.List[["DeInt"]][["ETRunweightedTax"]]$ETR <- sapply(1:nrow(ETR.List[["DeInt"]][["ETRunweightedTax"]]), function (y) ETR.List[["DeInt"]][["ETRunweightedTax"]][[y,12]] / ETR.List[["DeInt"]][["ETRunweightedEBT"]][[y,12]])
 
+ETR.List[["DeInt"]][["ETRunweightedEBT"]] <- ETR.List[["DeInt"]][["ETRunweightedEBT"]][!ETR.List[["DeInt"]][["ETRunweightedTax"]]$ETR > 1,]
+ETR.List[["DeInt"]][["ETRunweightedTax"]] <- ETR.List[["DeInt"]][["ETRunweightedTax"]][!ETR.List[["DeInt"]][["ETRunweightedTax"]]$ETR > 1,]
+ETR.List[["DeInt"]][["ETRunweightedTax"]] <- ETR.List[["DeInt"]][["ETRunweightedTax"]][!ETR.List[["DeInt"]][["ETRunweightedEBT"]]$sum < 0,]
+ETR.List[["DeInt"]][["ETRunweightedEBT"]] <- ETR.List[["DeInt"]][["ETRunweightedEBT"]][!ETR.List[["DeInt"]][["ETRunweightedEBT"]]$sum < 0,]
 
 
-ETR.List[["DeInt"]][["ETRunweighted"]] <- data.frame("ISO" = "DEINT", 
-                                                     "ETR" = mean(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13], na.rm = TRUE), 
-                                                     "sd" = sd(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13], na.rm = TRUE),
-                                                     "n" = length(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13][!is.na(as.numeric(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13]))]))
-
+ETR.List[["DeInt"]][["ETRunweighted"]] <- data.frame("ISO" = "DeInt", 
+                                                         "ETR" = mean(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13], na.rm = TRUE), 
+                                                         "sd" = sd(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13], na.rm = TRUE),
+                                                         "n" = length(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13][!is.na(as.numeric(ETR.List[["DeInt"]][["ETRunweightedTax"]][,13]))]))
 
 ETR.List[["DeInt"]][["ETRunweighted"]]$low95 <- ETR.List[["DeInt"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["DeInt"]][["ETRunweighted"]]$n-1) * ETR.List[["DeInt"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["DeInt"]][["ETRunweighted"]]$n)
 ETR.List[["DeInt"]][["ETRunweighted"]]$high95 <- ETR.List[["DeInt"]][["ETRunweighted"]]$ETR + qt(0.975, df= ETR.List[["DeInt"]][["ETRunweighted"]]$n-1) * ETR.List[["DeInt"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["DeInt"]][["ETRunweighted"]]$n)
@@ -171,13 +301,14 @@ ETR.List[["DeInt"]][["ETRunweighted"]]$high95 <- ETR.List[["DeInt"]][["ETRunweig
 ETR.List[["DeInt"]][["ETRunweighted"]] <- ETR.List[["DeInt"]][["ETRunweighted"]][!is.na(ETR.List[["DeInt"]][["ETRunweighted"]]$ETR),]
 
 
+
 #CSH unweighted ETR
 
 
 ETR.List[["ByCSH"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["ByCSH"]][["CompanyList"]][[(i-1)]] <- EdgelistByCSH[[i]]}
-names(ETR.List[["ByCSH"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["ByCSH"]][["CompanyList"]][[(i-1)]] <- EdgelistByCSH[[i]]}
+names(ETR.List[["ByCSH"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(ETR.List[["ByCSH"]][["CompanyList"]])) {ETR.List[["ByCSH"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -193,18 +324,18 @@ names(ETR.List[["ByCSH"]][["ETRunweightedEBT"]]) <- na.omit(unique(NodelistALL$C
 
 for (i in 1:length(ETR.List[["ByCSH"]][["ETRunweightedEBT"]])) {
   Temp1 <- ETR.List[["ByCSH"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[i]])) {
-  Temp1 <- unique(c(Temp1,ETR.List[["ByCSH"]][["CompanyList"]][[j]][[i]]))
+  for (j in 2:length(ETR.List[["ByCSH"]][["CompanyList"]])) {
+    Temp1 <- unique(c(Temp1,ETR.List[["ByCSH"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
   if (nrow(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[i]]) == 0 ) {ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[i]][1,] <- NA}
 }
 
 for (x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedEBT"]])) {
-        for (i in 1:nrow(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]])) {
-          for (j in 2:ncol(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]])) {
-            ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["ByCSH"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j], NA)
-}}}
+  for (i in 1:nrow(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]])) {
+    for (j in 3:ncol(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["ByCSH"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    }}}
 
 
 
@@ -214,7 +345,7 @@ names(ETR.List[["ByCSH"]][["ETRunweightedTax"]]) <- na.omit(unique(NodelistALL$C
 
 for (i in 1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]])) {
   Temp1 <- ETR.List[["ByCSH"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[i]])) {
+  for (j in 2:length(ETR.List[["ByCSH"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["ByCSH"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["ByCSH"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
@@ -223,8 +354,8 @@ for (i in 1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]])) {
 
 for (x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]])) {
   for (i in 1:nrow(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]])) {
-      ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["ByCSH"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["ByCSH"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j], NA)
     }}}
 
 
@@ -232,7 +363,7 @@ for(x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedEBT"]])) {
   for(i in 1:nrow(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]])) {
     for(j in 2:ncol(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]])) {
       ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j])) & !is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][i,j])) ,  as.numeric(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][i,j])  , NA  )
-      }}}
+    }}}
 
 
 for(x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]])) {
@@ -246,19 +377,22 @@ for(x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]])) {
 for (x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedEBT"]])) {
   ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
   ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
+  ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
+  ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
+  ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][!ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]] <- ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][!ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]] <- ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][!ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][!ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+
 }
 
 
-for (x in 1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]])) {
-        ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
-        ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
-        ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["ByCSH"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[x]][[y,12]])
-  }
-    
 
 ETR.List[["ByCSH"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
-                                                      "sd" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
-                                                      "n" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                     "sd" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                     "n" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["ByCSH"]][["ETRunweighted"]]$low95 <- ETR.List[["ByCSH"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["ByCSH"]][["ETRunweighted"]]$n-1) * ETR.List[["ByCSH"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["ByCSH"]][["ETRunweighted"]]$n)
@@ -273,8 +407,8 @@ ETR.List[["ByCSH"]][["ETRunweighted"]] <- ETR.List[["ByCSH"]][["ETRunweighted"]]
 
 ETR.List[["ByGUO"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["ByGUO"]][["CompanyList"]][[(i-1)]] <- EdgelistByGUO[[i]]}
-names(ETR.List[["ByGUO"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["ByGUO"]][["CompanyList"]][[(i-1)]] <- EdgelistByGUO[[i]]}
+names(ETR.List[["ByGUO"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(ETR.List[["ByGUO"]][["CompanyList"]])) {ETR.List[["ByGUO"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -291,7 +425,7 @@ names(ETR.List[["ByGUO"]][["ETRunweightedEBT"]]) <- na.omit(unique(NodelistALL$C
 
 for (i in 1:length(ETR.List[["ByGUO"]][["ETRunweightedEBT"]])) {
   Temp1 <- ETR.List[["ByGUO"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[i]])) {
+  for (j in 2:length(ETR.List[["ByGUO"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["ByGUO"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -300,8 +434,8 @@ for (i in 1:length(ETR.List[["ByGUO"]][["ETRunweightedEBT"]])) {
 
 for (x in 1:length(ETR.List[["ByGUO"]][["ETRunweightedEBT"]])) {
   for (i in 1:nrow(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]])) {
-      ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["ByGUO"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["ByGUO"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -312,7 +446,7 @@ names(ETR.List[["ByGUO"]][["ETRunweightedTax"]]) <- na.omit(unique(NodelistALL$C
 
 for (i in 1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]])) {
   Temp1 <- ETR.List[["ByGUO"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[i]])) {
+  for (j in 2:length(ETR.List[["ByGUO"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["ByGUO"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["ByGUO"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
@@ -321,8 +455,8 @@ for (i in 1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]])) {
 
 for (x in 1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]])) {
   for (i in 1:nrow(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]])) {
-      ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["ByGUO"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["ByGUO"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][i,j], NA)
     }}}
 
 
@@ -344,19 +478,21 @@ for(x in 1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]])) {
 for (x in 1:length(ETR.List[["ByGUO"]][["ETRunweightedEBT"]])) {
   ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
   ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
-}
-
-
-for (x in 1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]])) {
   ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
   ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
-  ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][[y,12]])
+  ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][!ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]] <- ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][!ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]] <- ETR.List[["ByGUO"]][["ETRunweightedTax"]][[x]][!ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]][!ETR.List[["ByGUO"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  
 }
 
 
 ETR.List[["ByGUO"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
-                                                     "sd" = c(sapply(1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
-                                                     "n" = c(sapply(1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                         "sd" = c(sapply(1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                         "n" = c(sapply(1:length(ETR.List[["ByGUO"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByGUO"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["ByGUO"]][["ETRunweighted"]]$low95 <- ETR.List[["ByGUO"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["ByGUO"]][["ETRunweighted"]]$n-1) * ETR.List[["ByGUO"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["ByGUO"]][["ETRunweighted"]]$n)
@@ -370,8 +506,8 @@ ETR.List[["ByGUO"]][["ETRunweighted"]] <- ETR.List[["ByGUO"]][["ETRunweighted"]]
 
 ETR.List[["Byanyown"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["Byanyown"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
-names(ETR.List[["Byanyown"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["Byanyown"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
+names(ETR.List[["Byanyown"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(ETR.List[["Byanyown"]][["CompanyList"]])) {ETR.List[["Byanyown"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -382,24 +518,24 @@ for (i in 1:length(ETR.List[["Byanyown"]][["CompanyList"]])) {
     if (!isTruthy(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]])) {next}
     if (all(is.na(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]][,1]))) {next}
     if (nrow(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]]) < 20) {ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]] <- rbind(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]],c("DUMMY"),c("DUMMY"),c("DUMMY"),c("DUMMY"))}
-
-Temp1 <- apply(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]],1, function (y) as.numeric(which(Nodelist.List[[i+1]]$CompanyISO[match(y, Nodelist.List[[i+1]]$CompanyBvDID)] == names(ETR.List[["Byanyown"]][["CompanyList"]][[i]][j]))))
-Temp2 <- apply(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]],1, function (y) as.numeric(which(Nodelist.List[[i+1]]$CompanyISO[match(y, Nodelist.List[[i+1]]$CompanyBvDID)] == "DE")))
-Temp3 <- sapply(1:length(Temp2), function (z) Temp2[[z]] > first(Temp1[[z]]))
-
-Temp4 <- ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]]
-for (g in 1:ncol(Temp4)) {Temp4[,g] <- g}
-
-for (g in 1:nrow(Temp4)) {
-  for(h in 1:ncol(Temp4)) {
-      Temp4[g,h] <- ifelse(Temp4[g,h] %in% Temp2[[g]], as.character(Temp3[[g]][Temp2[[g]] == Temp4[g,h]]) , "FALSE")
+    
+    Temp1 <- apply(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]],1, function (y) as.numeric(which(Nodelist.List[[i+1]]$CompanyISO[match(y, Nodelist.List[[i+1]]$CompanyBvDID)] == names(ETR.List[["Byanyown"]][["CompanyList"]][[i]][j]))))
+    Temp2 <- apply(ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]],1, function (y) as.numeric(which(Nodelist.List[[i+1]]$CompanyISO[match(y, Nodelist.List[[i+1]]$CompanyBvDID)] == "DE")))
+    Temp3 <- sapply(1:length(Temp2), function (z) Temp2[[z]] > first(Temp1[[z]]))
+    
+    Temp4 <- ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]]
+    for (g in 1:ncol(Temp4)) {Temp4[,g] <- g}
+    
+    for (g in 1:nrow(Temp4)) {
+      for(h in 1:ncol(Temp4)) {
+        Temp4[g,h] <- ifelse(Temp4[g,h] %in% Temp2[[g]], as.character(Temp3[[g]][Temp2[[g]] == Temp4[g,h]]) , "FALSE")
+      }
     }
-}
-
-Temp4 <- sapply(Temp4, function (y) y == "TRUE")
-
-ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]] <- ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]][Temp4]
-}}
+    
+    Temp4 <- sapply(Temp4, function (y) y == "TRUE")
+    
+    ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]] <- ETR.List[["Byanyown"]][["CompanyList"]][[i]][[j]][Temp4]
+  }}
 
 
 
@@ -409,7 +545,7 @@ names(ETR.List[["Byanyown"]][["ETRunweightedEBT"]]) <- na.omit(unique(NodelistAL
 
 for (i in 1:length(ETR.List[["Byanyown"]][["ETRunweightedEBT"]])) {
   Temp1 <- ETR.List[["Byanyown"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[i]])) {
+  for (j in 2:length(ETR.List[["Byanyown"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["Byanyown"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -418,8 +554,8 @@ for (i in 1:length(ETR.List[["Byanyown"]][["ETRunweightedEBT"]])) {
 
 for (x in 1:length(ETR.List[["Byanyown"]][["ETRunweightedEBT"]])) {
   for (i in 1:nrow(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]])) {
-      ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Byanyown"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Byanyown"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -430,7 +566,7 @@ names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) <- na.omit(unique(NodelistAL
 
 for (i in 1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]])) {
   Temp1 <- ETR.List[["Byanyown"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[i]])) {
+  for (j in 2:length(ETR.List[["Byanyown"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["Byanyown"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["Byanyown"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
@@ -439,8 +575,8 @@ for (i in 1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]])) {
 
 for (x in 1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]])) {
   for (i in 1:nrow(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]])) {
-      ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Byanyown"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Byanyown"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][i,j], NA)
     }}}
 
 
@@ -462,19 +598,21 @@ for(x in 1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]])) {
 for (x in 1:length(ETR.List[["Byanyown"]][["ETRunweightedEBT"]])) {
   ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
   ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
-}
-
-
-for (x in 1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]])) {
   ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
   ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
-  ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][[y,12]])
+  ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][!ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Byanyown"]][["ETRunweightedTax"]][[x]][!ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  
 }
 
 
 ETR.List[["Byanyown"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
-                                                     "sd" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
-                                                     "n" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                         "sd" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                         "n" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["Byanyown"]][["ETRunweighted"]]$low95 <- ETR.List[["Byanyown"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["Byanyown"]][["ETRunweighted"]]$n-1) * ETR.List[["Byanyown"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["Byanyown"]][["ETRunweighted"]]$n)
@@ -485,13 +623,136 @@ ETR.List[["Byanyown"]][["ETRunweighted"]] <- ETR.List[["Byanyown"]][["ETRunweigh
 
 
 
+#intermed unweighted ETR
+
+
+ETR.List[["Byintermed"]][["CompanyList"]] <- vector(mode = "list")
+
+for(i in 2:10) {ETR.List[["Byintermed"]][["CompanyList"]][[(i-1)]] <- EdgelistByintermed[[i]]}
+names(ETR.List[["Byintermed"]][["CompanyList"]]) <- paste(2020:2012)
+
+for(i in 1:length(ETR.List[["Byintermed"]][["CompanyList"]])) {ETR.List[["Byintermed"]][["CompanyList"]][[i]][["DE"]] <- NULL}
+
+
+for (i in 1:length(ETR.List[["Byintermed"]][["CompanyList"]])) {
+  for (j in 1:length(ETR.List[["Byintermed"]][["CompanyList"]][[i]])) {
+    
+    if (!isTruthy(ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]])) {next}
+    if (all(is.na(ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]][,1]))) {next}
+    if (nrow(ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]]) < 20) {ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]] <- rbind(ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]],c("DUMMY"),c("DUMMY"),c("DUMMY"),c("DUMMY"))}
+    
+    Temp1 <- apply(ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]],1, function (y) as.numeric(which(Nodelist.List[[i+1]]$CompanyISO[match(y, Nodelist.List[[i+1]]$CompanyBvDID)] == names(ETR.List[["Byintermed"]][["CompanyList"]][[i]][j]))))
+    Temp2 <- apply(ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]],1, function (y) as.numeric(which(Nodelist.List[[i+1]]$CompanyISO[match(y, Nodelist.List[[i+1]]$CompanyBvDID)] == "DE")))
+    Temp3 <- sapply(1:length(Temp2), function (z) Temp2[[z]] > first(Temp1[[z]]))
+    
+    Temp4 <- ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]]
+    for (g in 1:ncol(Temp4)) {Temp4[,g] <- g}
+    
+    for (g in 1:nrow(Temp4)) {
+      for(h in 1:ncol(Temp4)) {
+        Temp4[g,h] <- ifelse(Temp4[g,h] %in% Temp2[[g]], as.character(Temp3[[g]][Temp2[[g]] == Temp4[g,h]]) , "FALSE")
+      }
+    }
+    
+    Temp4 <- sapply(Temp4, function (y) y == "TRUE")
+    
+    ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]] <- ETR.List[["Byintermed"]][["CompanyList"]][[i]][[j]][Temp4]
+  }}
+
+
+
+ETR.List[["Byintermed"]][["ETRunweightedEBT"]] <- vector(mode = "list")
+for (i in 1:length(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"])) {ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[i]] <- data.frame("CompanyBVDID" = c(NA))}
+names(ETR.List[["Byintermed"]][["ETRunweightedEBT"]]) <- na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]
+
+for (i in 1:length(ETR.List[["Byintermed"]][["ETRunweightedEBT"]])) {
+  Temp1 <- ETR.List[["Byintermed"]][["CompanyList"]][[1]][[i]]
+  for (j in 2:length(ETR.List[["Byintermed"]][["CompanyList"]])) {
+    Temp1 <- unique(c(Temp1,ETR.List[["Byintermed"]][["CompanyList"]][[j]][[i]]))
+  }
+  ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
+  if (nrow(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[i]]) == 0 ) {ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[i]][1,] <- NA}
+}
+
+for (x in 1:length(ETR.List[["Byintermed"]][["ETRunweightedEBT"]])) {
+  for (i in 1:nrow(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]])) {
+    for (j in 3:ncol(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Byintermed"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    }}}
+
+
+
+ETR.List[["Byintermed"]][["ETRunweightedTax"]] <- vector(mode = "list")
+for (i in 1:length(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"])) {ETR.List[["Byintermed"]][["ETRunweightedTax"]][[i]] <- data.frame("CompanyBVDID" = c(NA))}
+names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) <- na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]
+
+for (i in 1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]])) {
+  Temp1 <- ETR.List[["Byintermed"]][["CompanyList"]][[1]][[i]]
+  for (j in 2:length(ETR.List[["Byintermed"]][["CompanyList"]])) {
+    Temp1 <- unique(c(Temp1,ETR.List[["Byintermed"]][["CompanyList"]][[j]][[i]]))
+  }
+  ETR.List[["Byintermed"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
+  if (nrow(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[i]]) == 0 ) {ETR.List[["Byintermed"]][["ETRunweightedTax"]][[i]][1,] <- NA}
+}
+
+for (x in 1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]])) {
+  for (i in 1:nrow(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]])) {
+    for (j in 3:ncol(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Byintermed"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    }}}
+
+
+for(x in 1:length(ETR.List[["Byintermed"]][["ETRunweightedEBT"]])) {
+  for(i in 1:nrow(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]])) {
+    for(j in 2:ncol(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j])) & !is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j])) ,  as.numeric(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j])  , NA  )
+    }}}
+
+
+for(x in 1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]])) {
+  for(i in 1:nrow(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]])) {
+    for(j in 2:ncol(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][i,j])) & !is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j])) ,  as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][i,j])  , NA  )
+    }}}
+
+
+
+for (x in 1:length(ETR.List[["Byintermed"]][["ETRunweightedEBT"]])) {
+  ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
+  ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
+  ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
+  ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
+  ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][!ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Byintermed"]][["ETRunweightedTax"]][[x]][!ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  
+}
+
+
+ETR.List[["Byintermed"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
+                                                            "sd" = c(sapply(1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                            "n" = c(sapply(1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13]))]))))
+
+
+ETR.List[["Byintermed"]][["ETRunweighted"]]$low95 <- ETR.List[["Byintermed"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["Byintermed"]][["ETRunweighted"]]$n-1) * ETR.List[["Byintermed"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["Byintermed"]][["ETRunweighted"]]$n)
+ETR.List[["Byintermed"]][["ETRunweighted"]]$high95 <- ETR.List[["Byintermed"]][["ETRunweighted"]]$ETR + qt(0.975, df= ETR.List[["Byintermed"]][["ETRunweighted"]]$n-1) * ETR.List[["Byintermed"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["Byintermed"]][["ETRunweighted"]]$n)
+
+ETR.List[["Byintermed"]][["ETRunweighted"]] <- ETR.List[["Byintermed"]][["ETRunweighted"]][!is.na(ETR.List[["Byintermed"]][["ETRunweighted"]]$ETR),]
+
+
+
+
+
 #ETR unweighted Loops
 
 
 ETR.List[["Loop"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["Loop"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
-names(ETR.List[["Loop"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["Loop"]][["CompanyList"]][[(i-1)]] <- EdgelistByanyown[[i]]}
+names(ETR.List[["Loop"]][["CompanyList"]]) <- paste(2020:2012)
 
 
 for(i in 1:length(ETR.List[["Loop"]][["CompanyList"]])) {
@@ -541,7 +802,7 @@ names(ETR.List[["Loop"]][["ETRunweightedEBT"]]) <- na.omit(unique(NodelistALL$Co
 
 for (i in 1:length(ETR.List[["Loop"]][["ETRunweightedEBT"]])) {
   Temp1 <- ETR.List[["Loop"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["Loop"]][["ETRunweightedEBT"]][[i]])) {
+  for (j in 2:length(ETR.List[["Loop"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["Loop"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["Loop"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -550,8 +811,8 @@ for (i in 1:length(ETR.List[["Loop"]][["ETRunweightedEBT"]])) {
 
 for (x in 1:length(ETR.List[["Loop"]][["ETRunweightedEBT"]])) {
   for (i in 1:nrow(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]])) {
-      ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Loop"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Loop"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -562,7 +823,7 @@ names(ETR.List[["Loop"]][["ETRunweightedTax"]]) <- na.omit(unique(NodelistALL$Co
 
 for (i in 1:length(ETR.List[["Loop"]][["ETRunweightedTax"]])) {
   Temp1 <- ETR.List[["Loop"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["Loop"]][["ETRunweightedTax"]][[i]])) {
+  for (j in 2:length(ETR.List[["Loop"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["Loop"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["Loop"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
@@ -571,8 +832,8 @@ for (i in 1:length(ETR.List[["Loop"]][["ETRunweightedTax"]])) {
 
 for (x in 1:length(ETR.List[["Loop"]][["ETRunweightedTax"]])) {
   for (i in 1:nrow(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]])) {
-      ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Loop"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Loop"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][i,j], NA)
     }}}
 
 
@@ -594,19 +855,21 @@ for(x in 1:length(ETR.List[["Loop"]][["ETRunweightedTax"]])) {
 for (x in 1:length(ETR.List[["Loop"]][["ETRunweightedEBT"]])) {
   ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
   ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
-}
-
-
-for (x in 1:length(ETR.List[["Loop"]][["ETRunweightedTax"]])) {
   ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
   ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
-  ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][[y,12]])
+  ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Loop"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][!ETR.List[["Loop"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Loop"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Loop"]][["ETRunweightedTax"]][[x]][!ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Loop"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  
 }
 
 
 ETR.List[["Loop"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
-                                                    "sd" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
-                                                    "n" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                         "sd" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                         "n" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["Loop"]][["ETRunweighted"]]$low95 <- ETR.List[["Loop"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["Loop"]][["ETRunweighted"]]$n-1) * ETR.List[["Loop"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["Loop"]][["ETRunweighted"]]$n)
@@ -620,8 +883,8 @@ ETR.List[["Loop"]][["ETRunweighted"]] <- ETR.List[["Loop"]][["ETRunweighted"]][!
 
 ETR.List[["Byanysub"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["Byanysub"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
-names(ETR.List[["Byanysub"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["Byanysub"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
+names(ETR.List[["Byanysub"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(ETR.List[["Byanysub"]][["CompanyList"]])) {ETR.List[["Byanysub"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -658,7 +921,7 @@ names(ETR.List[["Byanysub"]][["ETRunweightedEBT"]]) <- na.omit(unique(NodelistAL
 
 for (i in 1:length(ETR.List[["Byanysub"]][["ETRunweightedEBT"]])) {
   Temp1 <- ETR.List[["Byanysub"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[i]])) {
+  for (j in 2:length(ETR.List[["Byanysub"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["Byanysub"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -667,8 +930,8 @@ for (i in 1:length(ETR.List[["Byanysub"]][["ETRunweightedEBT"]])) {
 
 for (x in 1:length(ETR.List[["Byanysub"]][["ETRunweightedEBT"]])) {
   for (i in 1:nrow(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]])) {
-      ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Byanysub"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["Byanysub"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -679,7 +942,7 @@ names(ETR.List[["Byanysub"]][["ETRunweightedTax"]]) <- na.omit(unique(NodelistAL
 
 for (i in 1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]])) {
   Temp1 <- ETR.List[["Byanysub"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[i]])) {
+  for (j in 2:length(ETR.List[["Byanysub"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["Byanysub"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["Byanysub"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
@@ -688,8 +951,8 @@ for (i in 1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]])) {
 
 for (x in 1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]])) {
   for (i in 1:nrow(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]])) {
-      ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Byanysub"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["Byanysub"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][i,j], NA)
     }}}
 
 
@@ -711,19 +974,20 @@ for(x in 1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]])) {
 for (x in 1:length(ETR.List[["Byanysub"]][["ETRunweightedEBT"]])) {
   ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
   ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
-}
-
-
-for (x in 1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]])) {
   ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
   ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
-  ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][[y,12]])
+  ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][!ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]] <- ETR.List[["Byanysub"]][["ETRunweightedTax"]][[x]][!ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]][!ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  
 }
 
-
 ETR.List[["Byanysub"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
-                                                        "sd" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
-                                                        "n" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                         "sd" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                         "n" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["Byanysub"]][["ETRunweighted"]]$low95 <- ETR.List[["Byanysub"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["Byanysub"]][["ETRunweighted"]]$n-1) * ETR.List[["Byanysub"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["Byanysub"]][["ETRunweighted"]]$n)
@@ -737,8 +1001,8 @@ ETR.List[["Byanysub"]][["ETRunweighted"]] <- ETR.List[["Byanysub"]][["ETRunweigh
 
 ETR.List[["ByanysubGER"]][["CompanyList"]] <- vector(mode = "list")
 
-for(i in 2:12) {ETR.List[["ByanysubGER"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
-names(ETR.List[["ByanysubGER"]][["CompanyList"]]) <- paste(2020:2010)
+for(i in 2:10) {ETR.List[["ByanysubGER"]][["CompanyList"]][[(i-1)]] <- EdgelistByanysub[[i]]}
+names(ETR.List[["ByanysubGER"]][["CompanyList"]]) <- paste(2020:2012)
 
 for(i in 1:length(ETR.List[["ByanysubGER"]][["CompanyList"]])) {ETR.List[["ByanysubGER"]][["CompanyList"]][[i]][["DE"]] <- NULL}
 
@@ -747,12 +1011,12 @@ for(i in 1:length(ETR.List[["ByanysubGER"]][["CompanyList"]])) {ETR.List[["Byany
 
 for (i in 1:length(ETR.List[["ByanysubGER"]][["CompanyList"]])) {
   for (j in 1:length(ETR.List[["ByanysubGER"]][["CompanyList"]][[i]])) {
-
+    
     
     ETR.List[["ByanysubGER"]][["CompanyList"]][[i]][[j]] <- ETR.List[["Byanysub"]][["CompanyList"]][[i]][[j]] |> subset(ETR.List[["Byanysub"]][["CompanyList"]][[i]] %in% EdgelistByanysub[[(i+1)]][[names(ETR.List[["ByanysubGER"]][["CompanyList"]][[i]][j])]][,1])
-  
+    
   }
-  }
+}
 
 
 ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]] <- vector(mode = "list")
@@ -761,7 +1025,7 @@ names(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]]) <- na.omit(unique(Nodelis
 
 for (i in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]])) {
   Temp1 <- ETR.List[["ByanysubGER"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[i]])) {
+  for (j in 2:length(ETR.List[["ByanysubGER"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["ByanysubGER"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[i]] <- subset(EBT, EBT$CompanyBVDID %in% Temp1)
@@ -770,8 +1034,8 @@ for (i in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]])) {
 
 for (x in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]])) {
   for (i in 1:nrow(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]])) {
-      ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["ByanysubGER"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]])) {
+      ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,j])) & ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,1] %in% ETR.List[["ByanysubGER"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][i,j], NA)
     }}}
 
 
@@ -782,7 +1046,7 @@ names(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]) <- na.omit(unique(Nodelis
 
 for (i in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]])) {
   Temp1 <- ETR.List[["ByanysubGER"]][["CompanyList"]][[1]][[i]]
-  for (j in 2:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[i]])) {
+  for (j in 2:length(ETR.List[["ByanysubGER"]][["CompanyList"]])) {
     Temp1 <- unique(c(Temp1,ETR.List[["ByanysubGER"]][["CompanyList"]][[j]][[i]]))
   }
   ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[i]] <- subset(Tax, Tax$CompanyBVDID %in% Temp1)
@@ -791,8 +1055,8 @@ for (i in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]])) {
 
 for (x in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]])) {
   for (i in 1:nrow(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]])) {
-    for (j in 2:ncol(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]])) {
-      ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["ByanysubGER"]][["CompanyList"]][[(j-1)]][[x]], ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,j], NA)
+    for (j in 3:ncol(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]])) {
+      ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,j] <- ifelse(!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,j])) & ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,1] %in% ETR.List[["ByanysubGER"]][["CompanyList"]][[(j-2)]][[x]], ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][i,j], NA)
     }}}
 
 
@@ -814,19 +1078,21 @@ for(x in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]])) {
 for (x in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]])) {
   ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][y,2:11]) , na.rm = TRUE ))
   ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]]$sum[ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]]$sum == 0] <- NA
-}
-
-
-for (x in 1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]])) {
   ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$sum <- sapply(1:nrow(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]), function (y) sum(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][y,2:11]), na.rm = TRUE))
   ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$sum[ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$sum == 0] <- NA
-  ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][[y,12]])
+  ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$ETR <- sapply(1:nrow(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]), function (y) ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][[y,12]] / ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][y,12])
+  
+  ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][!ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]] <- ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][!ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]]$ETR > 1,]
+  ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]] <- ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[x]][!ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]] <- ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]][!ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[x]]$sum < 0,]
+  
 }
 
 
 ETR.List[["ByanysubGER"]][["ETRunweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) mean(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))), 
-                                                        "sd" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
-                                                        "n" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                         "sd" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) sd(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13], na.rm = TRUE))),
+                                                         "n" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["ByanysubGER"]][["ETRunweighted"]]$low95 <- ETR.List[["ByanysubGER"]][["ETRunweighted"]]$ETR - qt(0.975, df= ETR.List[["ByanysubGER"]][["ETRunweighted"]]$n-1) * ETR.List[["ByanysubGER"]][["ETRunweighted"]]$sd /sqrt(ETR.List[["ByanysubGER"]][["ETRunweighted"]]$n)
@@ -880,7 +1146,7 @@ ETR.List[["DeDom"]][["ETRweighted"]]$sd <- sqrt(wtd.var(ETR.List[["DeDom"]][["ET
 ETR.List[["DeDom"]][["ETRweighted"]]$n <- length(ETR.List[["DeDom"]][["ETRunweightedTax"]]$ETR[!is.na(ETR.List[["DeDom"]][["ETRunweightedTax"]]$ETR)])
 ETR.List[["DeDom"]][["ETRweighted"]]$low95 <- ETR.List[["DeDom"]][["ETRweighted"]]$ETR - qt(0.975, df = ETR.List[["DeDom"]][["ETRweighted"]]$n-1) * ETR.List[["DeDom"]][["ETRweighted"]]$sd / sqrt(ETR.List[["DeDom"]][["ETRweighted"]]$n)
 ETR.List[["DeDom"]][["ETRweighted"]]$high95 <- ETR.List[["DeDom"]][["ETRweighted"]]$ETR + qt(0.975, df = ETR.List[["DeDom"]][["ETRweighted"]]$n-1) * ETR.List[["DeDom"]][["ETRweighted"]]$sd / sqrt(ETR.List[["DeDom"]][["ETRweighted"]]$n)
-  
+
 
 #International firms weighted ETR
 
@@ -896,8 +1162,8 @@ ETR.List[["DeInt"]][["ETRweighted"]]$high95 <- ETR.List[["DeInt"]][["ETRweighted
 #CSH firms weighted ETR 
 
 ETR.List[["ByCSH"]][["ETRweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) sum(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,12], na.rm = TRUE) / sum(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[y]][,12], na.rm = TRUE ))), 
-                                                     "sd" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
-                                                     "n" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                   "sd" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["ByCSH"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
+                                                   "n" = c(sapply(1:length(ETR.List[["ByCSH"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByCSH"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["ByCSH"]][["ETRweighted"]]$low95 <- ETR.List[["ByCSH"]][["ETRweighted"]]$ETR - qt(0.975, df= ETR.List[["ByCSH"]][["ETRweighted"]]$n-1) * ETR.List[["ByCSH"]][["ETRweighted"]]$sd /sqrt(ETR.List[["ByCSH"]][["ETRweighted"]]$n)
@@ -922,8 +1188,8 @@ ETR.List[["ByGUO"]][["ETRweighted"]] <- ETR.List[["ByGUO"]][["ETRweighted"]][!is
 #anyown firms weighted ETR 
 
 ETR.List[["Byanyown"]][["ETRweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) sum(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,12], na.rm = TRUE) / sum(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[y]][,12], na.rm = TRUE ))), 
-                                                   "sd" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
-                                                   "n" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                      "sd" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Byanyown"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
+                                                      "n" = c(sapply(1:length(ETR.List[["Byanyown"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanyown"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["Byanyown"]][["ETRweighted"]]$low95 <- ETR.List[["Byanyown"]][["ETRweighted"]]$ETR - qt(0.975, df= ETR.List[["Byanyown"]][["ETRweighted"]]$n-1) * ETR.List[["Byanyown"]][["ETRweighted"]]$sd /sqrt(ETR.List[["Byanyown"]][["ETRweighted"]]$n)
@@ -932,12 +1198,24 @@ ETR.List[["Byanyown"]][["ETRweighted"]]$high95 <- ETR.List[["Byanyown"]][["ETRwe
 ETR.List[["Byanyown"]][["ETRweighted"]] <- ETR.List[["Byanyown"]][["ETRweighted"]][!is.na(ETR.List[["Byanyown"]][["ETRweighted"]]$ETR),]
 
 
+#intermed firms weighted ETR 
+
+ETR.List[["Byintermed"]][["ETRweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]]),function(y) sum(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,12], na.rm = TRUE) / sum(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[y]][,12], na.rm = TRUE ))), 
+                                                          "sd" = c(sapply(1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Byintermed"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
+                                                          "n" = c(sapply(1:length(ETR.List[["Byintermed"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byintermed"]][["ETRunweightedTax"]][[y]][,13]))]))))
+
+
+ETR.List[["Byintermed"]][["ETRweighted"]]$low95 <- ETR.List[["Byintermed"]][["ETRweighted"]]$ETR - qt(0.975, df= ETR.List[["Byintermed"]][["ETRweighted"]]$n-1) * ETR.List[["Byintermed"]][["ETRweighted"]]$sd /sqrt(ETR.List[["Byintermed"]][["ETRweighted"]]$n)
+ETR.List[["Byintermed"]][["ETRweighted"]]$high95 <- ETR.List[["Byintermed"]][["ETRweighted"]]$ETR + qt(0.975, df= ETR.List[["Byintermed"]][["ETRweighted"]]$n-1) * ETR.List[["Byintermed"]][["ETRweighted"]]$sd /sqrt(ETR.List[["Byintermed"]][["ETRweighted"]]$n)
+
+ETR.List[["Byintermed"]][["ETRweighted"]] <- ETR.List[["Byintermed"]][["ETRweighted"]][!is.na(ETR.List[["Byintermed"]][["ETRweighted"]]$ETR),]
+
 
 #Loops firms weighted ETR 
 
 ETR.List[["Loop"]][["ETRweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) sum(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,12], na.rm = TRUE) / sum(ETR.List[["Loop"]][["ETRunweightedEBT"]][[y]][,12], na.rm = TRUE ))), 
-                                                      "sd" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Loop"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
-                                                      "n" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                  "sd" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Loop"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
+                                                  "n" = c(sapply(1:length(ETR.List[["Loop"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Loop"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["Loop"]][["ETRweighted"]]$low95 <- ETR.List[["Loop"]][["ETRweighted"]]$ETR - qt(0.975, df= ETR.List[["Loop"]][["ETRweighted"]]$n-1) * ETR.List[["Loop"]][["ETRweighted"]]$sd /sqrt(ETR.List[["Loop"]][["ETRweighted"]]$n)
@@ -950,8 +1228,8 @@ ETR.List[["Loop"]][["ETRweighted"]] <- ETR.List[["Loop"]][["ETRweighted"]][!is.n
 #anysub firms weighted ETR 
 
 ETR.List[["Byanysub"]][["ETRweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) sum(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,12], na.rm = TRUE) / sum(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[y]][,12], na.rm = TRUE ))), 
-                                                   "sd" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
-                                                   "n" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                      "sd" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["Byanysub"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
+                                                      "n" = c(sapply(1:length(ETR.List[["Byanysub"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["Byanysub"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["Byanysub"]][["ETRweighted"]]$low95 <- ETR.List[["Byanysub"]][["ETRweighted"]]$ETR - qt(0.975, df= ETR.List[["Byanysub"]][["ETRweighted"]]$n-1) * ETR.List[["Byanysub"]][["ETRweighted"]]$sd /sqrt(ETR.List[["Byanysub"]][["ETRweighted"]]$n)
@@ -963,14 +1241,15 @@ ETR.List[["Byanysub"]][["ETRweighted"]] <- ETR.List[["Byanysub"]][["ETRweighted"
 #anysubGER firms weighted ETR 
 
 ETR.List[["ByanysubGER"]][["ETRweighted"]] <- data.frame("ISO" = c(na.omit(unique(NodelistALL$CompanyISO))[na.omit(unique(NodelistALL$CompanyISO)) != "DE"]), "ETR" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) sum(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,12], na.rm = TRUE) / sum(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[y]][,12], na.rm = TRUE ))), 
-                                                      "sd" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
-                                                      "n" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13]))]))))
+                                                         "sd" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) sqrt(wtd.var(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13], sqrt(ETR.List[["ByanysubGER"]][["ETRunweightedEBT"]][[y]][,12]^2),  na.rm = TRUE)))),
+                                                         "n" = c(sapply(1:length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]]),function(y) length(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13][!is.na(as.numeric(ETR.List[["ByanysubGER"]][["ETRunweightedTax"]][[y]][,13]))]))))
 
 
 ETR.List[["ByanysubGER"]][["ETRweighted"]]$low95 <- ETR.List[["ByanysubGER"]][["ETRweighted"]]$ETR - qt(0.975, df= ETR.List[["ByanysubGER"]][["ETRweighted"]]$n-1) * ETR.List[["ByanysubGER"]][["ETRweighted"]]$sd /sqrt(ETR.List[["ByanysubGER"]][["ETRweighted"]]$n)
 ETR.List[["ByanysubGER"]][["ETRweighted"]]$high95 <- ETR.List[["ByanysubGER"]][["ETRweighted"]]$ETR + qt(0.975, df= ETR.List[["ByanysubGER"]][["ETRweighted"]]$n-1) * ETR.List[["ByanysubGER"]][["ETRweighted"]]$sd /sqrt(ETR.List[["ByanysubGER"]][["ETRweighted"]]$n)
 
 ETR.List[["ByanysubGER"]][["ETRweighted"]] <- ETR.List[["ByanysubGER"]][["ETRweighted"]][!is.na(ETR.List[["ByanysubGER"]][["ETRweighted"]]$ETR),]
+
 
 #Affiliates  weighted ETR
 
@@ -1004,7 +1283,7 @@ ETR.List[["GerGUO"]][["ETRweighted"]] <- ETR.List[["GerGUO"]][["ETRweighted"]][!
 
 ETR.List[["Byanyown"]][["ETRunweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRunweighted"]], 
                                                    
-                                                   data.frame("ISO" = c("TaxHavens"), "ETR" = c(mean(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13]), na.rm = TRUE)),
+                                                   data.frame("ISO" = c("Sinks"), "ETR" = c(mean(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13]), na.rm = TRUE)),
                                                               "sd" = c(sd(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13]), na.rm = TRUE)),
                                                               "n" = c(length(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13])[!is.na(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13]))])),
                                                               "low95" = c(NA),
@@ -1013,12 +1292,24 @@ ETR.List[["Byanyown"]][["ETRunweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRu
 
 ETR.List[["Byanyown"]][["ETRunweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRunweighted"]], 
                                                    
-                                                   data.frame("ISO" = c("TaxHavensEU"), "ETR" = c(mean(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), na.rm = TRUE)),
+                                                   data.frame("ISO" = c("Conduits"), "ETR" = c(mean(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), na.rm = TRUE)),
                                                               "sd" = c(sd(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), na.rm = TRUE)),
                                                               "n" = c(length(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13])[!is.na(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]))])),
                                                               "low95" = c(NA),
                                                               "high95" = c(NA)
                                                    ))
+
+
+
+ETR.List[["Byanyown"]][["ETRunweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRunweighted"]], 
+                                                       
+                                                       data.frame("ISO" = c("ConduitsProxy"), "ETR" = c(mean(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), na.rm = TRUE)),
+                                                                  "sd" = c(sd(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), na.rm = TRUE)),
+                                                                  "n" = c(length(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13])[!is.na(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]))])),
+                                                                  "low95" = c(NA),
+                                                                  "high95" = c(NA)
+                                                       ))
+
 
 
 ETR.List[["Byanyown"]][["ETRunweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRunweighted"]], 
@@ -1041,7 +1332,7 @@ ETR.List[["Byanyown"]][["ETRunweighted"]]$high95 <- ETR.List[["Byanyown"]][["ETR
 
 ETR.List[["Byanyown"]][["ETRweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRweighted"]], 
                                                  
-                                                 data.frame("ISO" = c("TaxHavens"), "ETR" = c(sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,12]), na.rm = TRUE) / sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedEBT"]][names(ETR.List[["Byanyown"]][["ETRunweightedEBT"]]) %in% Taxhavens])[,12]), na.rm = TRUE)),
+                                                 data.frame("ISO" = c("Sinks"), "ETR" = c(sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,12]), na.rm = TRUE) / sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedEBT"]][names(ETR.List[["Byanyown"]][["ETRunweightedEBT"]]) %in% Taxhavens])[,12]), na.rm = TRUE)),
                                                             "sd" = c(sqrt(wtd.var(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13]), sqrt(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,12])^2),  na.rm = TRUE))),
                                                             "n" = c(length(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13])[!is.na(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% Taxhavens])[,13]))])),
                                                             "low95" = c(NA),
@@ -1050,12 +1341,25 @@ ETR.List[["Byanyown"]][["ETRweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRwei
 
 ETR.List[["Byanyown"]][["ETRweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRweighted"]], 
                                                  
-                                                 data.frame("ISO" = c("TaxHavensEU"), "ETR" = c(sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE) / sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedEBT"]][names(ETR.List[["Byanyown"]][["ETRunweightedEBT"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE)),
+                                                 data.frame("ISO" = c("Conduits"), "ETR" = c(sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE) / sum(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedEBT"]][names(ETR.List[["Byanyown"]][["ETRunweightedEBT"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE)),
                                                             "sd" = c(sqrt(wtd.var(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), sqrt(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,12])^2),  na.rm = TRUE))),
                                                             "n" = c(length(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13])[!is.na(unique(Reduce("rbind",ETR.List[["Byanyown"]][["ETRunweightedTax"]][names(ETR.List[["Byanyown"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]))])),
                                                             "low95" = c(NA),
                                                             "high95" = c(NA)
                                                  ))
+
+
+
+ETR.List[["Byanyown"]][["ETRweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRweighted"]], 
+                                                     
+                                                     data.frame("ISO" = c("ConduitsProxy"), "ETR" = c(sum(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE) / sum(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedEBT"]][names(ETR.List[["Byintermed"]][["ETRunweightedEBT"]]) %in% TaxhavensEU])[,12]), na.rm = TRUE)),
+                                                                "sd" = c(sqrt(wtd.var(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]), sqrt(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,12])^2),  na.rm = TRUE))),
+                                                                "n" = c(length(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13])[!is.na(unique(Reduce("rbind",ETR.List[["Byintermed"]][["ETRunweightedTax"]][names(ETR.List[["Byintermed"]][["ETRunweightedTax"]]) %in% TaxhavensEU])[,13]))])),
+                                                                "low95" = c(NA),
+                                                                "high95" = c(NA)
+                                                     ))
+
+
 
 ETR.List[["Byanyown"]][["ETRweighted"]] <- rbind(ETR.List[["Byanyown"]][["ETRweighted"]], 
                                                  ETR.List[["DeInt"]][["ETRweighted"]],
